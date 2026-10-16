@@ -9,7 +9,6 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>CONSULTA RÁPIDA DE
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic;'>Desarrollado para: Ing. William Cisneros</p>", unsafe_allow_html=True)
 st.divider()
 
-# Autodetectar cualquier archivo excel en el repositorio
 archivos_excel = [f for f in os.listdir('.') if f.endswith('.xlsx') or f.endswith('.xls')]
 
 with st.sidebar:
@@ -17,15 +16,23 @@ with st.sidebar:
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
 
 if archivo_subido is not None:
-    df = pd.read_excel(archivo_subido)
-    nombre_fuente = archivo_subido.name
-    fecha_mod = time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())
+    try:
+        df = pd.read_excel(archivo_subido, engine='openpyxl')
+        nombre_fuente = archivo_subido.name
+        fecha_mod = time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())
+    except Exception as e:
+        st.error(f"Error al leer el archivo subido: {e}")
+        df = None
 elif archivos_excel:
     archivo_local = archivos_excel[0]
-    df = pd.read_excel(archivo_local)
-    nombre_fuente = archivo_local
-    timestamp = os.path.getmtime(archivo_local)
-    fecha_mod = time.strftime('%d/%m/%Y %H:%M:%S', time.localtime(timestamp))
+    try:
+        df = pd.read_excel(archivo_local, engine='openpyxl')
+        nombre_fuente = archivo_local
+        timestamp = os.path.getmtime(archivo_local)
+        fecha_mod = time.strftime('%d/%m/%Y %H:%M:%S', time.localtime(timestamp))
+    except Exception as e:
+        st.error(f"Error al leer el archivo local {archivo_local}: {e}")
+        df = None
 else:
     df = None
     nombre_fuente = None
@@ -78,4 +85,4 @@ if df is not None:
         else:
             st.error(f"❌ No se encontró ningún bien con el código: {codigo}")
 else:
-    st.warning("⚠️ No se encontró ningún archivo Excel en el repositorio.")
+    st.warning("⚠️ No se encontró ningún archivo Excel válido en el repositorio.")
