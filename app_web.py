@@ -9,33 +9,38 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>CONSULTA RÁPIDA DE
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic;'>Desarrollado para: Ing. William Cisneros</p>", unsafe_allow_html=True)
 st.divider()
 
+def cargar_excel(origen):
+    for engine in ['calamine', 'openpyxl', None]:
+        try:
+            if engine:
+                return pd.read_excel(origen, engine=engine)
+            else:
+                return pd.read_excel(origen)
+        except Exception:
+            continue
+    st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
+    return None
+
 archivos_excel = [f for f in os.listdir('.') if f.endswith('.xlsx') or f.endswith('.xls')]
 
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
 
+df = None
+nombre_fuente = None
+fecha_mod = ""
+
 if archivo_subido is not None:
-    try:
-        df = pd.read_excel(archivo_subido, engine='openpyxl')
-        nombre_fuente = archivo_subido.name
-        fecha_mod = time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())
-    except Exception as e:
-        st.error(f"Error al leer el archivo subido: {e}")
-        df = None
+    df = cargar_excel(archivo_subido)
+    nombre_fuente = archivo_subido.name
+    fecha_mod = time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())
 elif archivos_excel:
     archivo_local = archivos_excel[0]
-    try:
-        df = pd.read_excel(archivo_local, engine='openpyxl')
-        nombre_fuente = archivo_local
-        timestamp = os.path.getmtime(archivo_local)
-        fecha_mod = time.strftime('%d/%m/%Y %H:%M:%S', time.localtime(timestamp))
-    except Exception as e:
-        st.error(f"Error al leer el archivo local {archivo_local}: {e}")
-        df = None
-else:
-    df = None
-    nombre_fuente = None
+    df = cargar_excel(archivo_local)
+    nombre_fuente = archivo_local
+    timestamp = os.path.getmtime(archivo_local)
+    fecha_mod = time.strftime('%d/%m/%Y %H:%M:%S', time.localtime(timestamp))
 
 if df is not None:
     for col in df.columns:
@@ -85,4 +90,4 @@ if df is not None:
         else:
             st.error(f"❌ No se encontró ningún bien con el código: {codigo}")
 else:
-    st.warning("⚠️ No se encontró ningún archivo Excel válido en el repositorio.")
+    st.warning("⚠️ No se encontró ningún archivo Excel válido o no se pudo cargar.")
