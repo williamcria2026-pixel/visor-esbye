@@ -5,45 +5,37 @@ import time
 
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# Encabezado
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>CONSULTA RÁPIDA DE BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic;'>Desarrollado para: Ing. William Cisneros</p>", unsafe_allow_html=True)
 st.divider()
 
-# Panel Lateral para Actualizar el Archivo Excel
-with st.sidebar:
-    st.header("⚙️ Opciones del Sistema")
-    st.write("Actualice el reporte de ESBYE cargando un archivo nuevo aquí:")
-    
-    archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
-    
-    st.divider()
-    st.markdown("**Nota:** Si no sube ningún archivo nuevo, el sistema usará por defecto el último reporte guardado en la carpeta.")
+# Autodetectar cualquier archivo excel en el repositorio
+archivos_excel = [f for f in os.listdir('.') if f.endswith('.xlsx') or f.endswith('.xls')]
 
-# Definir la fuente de los datos (Prioriza el archivo subido por el usuario, luego busca el local)
+with st.sidebar:
+    st.header("⚙️ Opciones")
+    archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
+
 if archivo_subido is not None:
     df = pd.read_excel(archivo_subido)
     nombre_fuente = archivo_subido.name
-    # Fecha actual o simulación de actualización
     fecha_mod = time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())
-    st.sidebar.success("🟢 Archivo actualizado desde la web con éxito.")
-elif os.path.exists("reporte.xlsx"):
-    df = pd.read_excel("reporte.xlsx")
-    nombre_fuente = "reporte.xlsx"
-    timestamp = os.path.getmtime("reporte.xlsx")
+elif archivos_excel:
+    archivo_local = archivos_excel[0]
+    df = pd.read_excel(archivo_local)
+    nombre_fuente = archivo_local
+    timestamp = os.path.getmtime(archivo_local)
     fecha_mod = time.strftime('%d/%m/%Y %H:%M:%S', time.localtime(timestamp))
 else:
     df = None
     nombre_fuente = None
 
 if df is not None:
-    # Limpiar espacios en columnas y datos
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
 
-    st.caption(f"🟢 **Reporte Activo:** {nombre_fuente} ({len(df):,} registros) | 📅 **Actualizado:** {fecha_mod}")
+    st.caption(f"🟢 **Reporte:** {nombre_fuente} ({len(df):,} registros) | 📅 **Actualizado:** {fecha_mod}")
     
-    # Buscador principal
     codigo = st.text_input("🔍 Ingrese o escanee el Código del Bien / Serie:", "").strip()
     
     if codigo:
@@ -63,7 +55,6 @@ if df is not None:
             row = res.iloc[0]
             st.success(f"📌 **BIEN ENCONTRADO:** {row.get('Bien', '-')}")
             
-            # Tarjeta de resultados
             st.info(f"🏢 **UBICACIÓN DE BODEGA:**\n### {row.get('Ubicación de Bodega', '-')}")
             
             col1, col2 = st.columns(2)
@@ -85,6 +76,6 @@ if df is not None:
                         pass
                 st.write(f"**Valor Contable:** {val_contable}")
         else:
-            st.error(f"❌ No se encontró ningún bien con el código o serie: {codigo}")
+            st.error(f"❌ No se encontró ningún bien con el código: {codigo}")
 else:
-    st.warning("⚠️ No se encontró ningún archivo de reporte. Utilice el panel lateral izquierdo para subir su archivo .xlsx.")
+    st.warning("⚠️ No se encontró ningún archivo Excel en el repositorio.")
