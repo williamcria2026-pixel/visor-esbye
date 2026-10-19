@@ -8,10 +8,9 @@ import io
 # ReportLab para la generación del Acta PDF en formato horizontal (Landscape)
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.graphics.shapes import Drawing, Rect
 
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
@@ -58,19 +57,19 @@ def generar_acta_pdf(row):
 
     # Estilos de texto
     title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=11, leading=13, alignment=1, fontName="Helvetica-Bold")
-    subtitle_style = ParagraphStyle('SubTitleStyle', parent=styles['Normal'], fontSize=9, leading=11, alignment=1)
+    subtitle_style = ParagraphStyle('SubTitleStyle', parent=styles['Normal'], fontSize=9, leading=12, alignment=0)
+    center_subtitle_style = ParagraphStyle('CenterSubTitleStyle', parent=styles['Normal'], fontSize=9, leading=12, alignment=1)
     acta_title = ParagraphStyle('ActaTitle', parent=styles['Heading2'], fontSize=10, leading=12, alignment=1, fontName="Helvetica-Bold")
     normal_small = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontSize=7, leading=8)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
-    # Gráfico vectorial del Escudo del Ecuador (Emblema Institucional)
-    d = Drawing(40, 36)
-    d.add(Rect(2, 2, 36, 32, fillColor=colors.HexColor('#F3F4F6'), strokeColor=colors.HexColor('#1E3A8A'), strokeWidth=1, rx=4, ry=4))
-    d.add(Rect(6, 24, 28, 6, fillColor=colors.HexColor('#FFD100'), strokeColor=None))
-    d.add(Rect(6, 18, 28, 6, fillColor=colors.HexColor('#0055A5'), strokeColor=None))
-    d.add(Rect(6, 12, 28, 6, fillColor=colors.HexColor('#EF3340'), strokeColor=None))
-    story.append(d)
-    story.append(Spacer(1, 4))
+    # Inserción del Escudo del Ecuador (busca la imagen 'escudo.png' en el repositorio)
+    escudo_path = "escudo.png"
+    if os.path.exists(escudo_path):
+        img_escudo = RLImage(escudo_path, width=0.6*inch, height=0.6*inch)
+        img_escudo.hAlign = 'CENTER'
+        story.append(img_escudo)
+        story.append(Spacer(1, 4))
 
     # 1. Encabezado Institucional (FIJO)
     story.append(Paragraph("MINISTERIO DE ECONOMÍA Y FINANZAS", title_style))
@@ -146,30 +145,29 @@ def generar_acta_pdf(row):
     story.append(t)
     story.append(Spacer(1, 25))
 
-    # 3. Sección de Firmas (Sin línea en blanco entre Nombre y C.I.)
+    # 3. Sección de Firmas (Exacto a la referencia visual)
     custodio_dinamico = limpiar_val(row.get('Custodio Actual'))
-    bodega_dinamica = limpiar_val(row.get('Ubicación de Bodega'))
 
-    firma_entrega = Paragraph(
-        f"<br/>________________________________________<br/>"
-        f"<b>{custodio_dinamico}</b><br/>"
-        f"QUIEN ENTREGA<br/>"
-        f"{bodega_dinamica}", 
-        subtitle_style
-    )
-    
-    firma_recibe = Paragraph(
-        f"<br/>________________________________________<br/>"
-        f"<b>QUIEN RECIBE</b><br/>"
-        f"Nombre: ...................................................<br/>"
-        f"C.I.: ...........................................................", 
-        subtitle_style
-    )
+    cell_entrega = [
+        Paragraph("________________________________________", subtitle_style),
+        Spacer(1, 4),
+        Paragraph(f"<b>{custodio_dinamico}</b>", center_subtitle_style),
+        Paragraph("<b>QUIEN ENTREGA</b>", center_subtitle_style)
+    ]
 
-    firmas_data = [[firma_entrega, firma_recibe]]
+    cell_recibe = [
+        Paragraph("________________________________________", subtitle_style),
+        Spacer(1, 4),
+        Paragraph("Nombre: ...................................................", subtitle_style),
+        Paragraph("C.I.: ...........................................................", subtitle_style),
+        Spacer(1, 4),
+        Paragraph("<b>QUIEN RECIBE</b>", center_subtitle_style)
+    ]
+
+    firmas_data = [[cell_entrega, cell_recibe]]
     firmas_table = Table(firmas_data, colWidths=[370, 370])
     firmas_table.setStyle(TableStyle([
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]))
     story.append(firmas_table)
@@ -254,7 +252,7 @@ if df is not None:
             else:
                 val_contable_fmt = "-"
 
-            # Pestañas organizadas
+            # Pestañas organizadas en el orden correcto
             tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
             
             with tab1:
