@@ -16,28 +16,31 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# Estilos CSS avanzados para móviles: separación del título y forzar columnas horizontales
+# Estilos CSS avanzados para replicar exactamente la distribución de la imagen
 st.markdown("""
     <style>
         .block-container {
-            padding-top: 2rem;
+            padding-top: 1.5rem;
             padding-bottom: 1rem;
             padding-left: 0.8rem;
             padding-right: 0.8rem;
         }
-        /* Forzar que las columnas de búsqueda y botón queden lado a lado también en celulares */
+        /* Forzar distribución en una sola fila para buscador y botón de limpiar */
         div[data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
-            align-items: flex-end !important;
+            align-items: center !important;
             gap: 0.4rem !important;
         }
-        div[data-testid="stHorizontalBlock"] > div {
-            width: auto !important;
-            flex: 1 1 auto !important;
+        div[data-testid="stHorizontalBlock"] > div:first-child {
+            flex: 3.8 1 0% !important;
         }
         div[data-testid="stHorizontalBlock"] > div:last-child {
-            flex: 0 0 50px !important;
+            flex: 1.2 1 0% !important;
+        }
+        /* Ocultar etiquetas predeterminadas para nivelar perfectamente */
+        div[data-testid="stTextInput"] label {
+            display: none !important;
         }
         h2 {
             margin-top: 0.5rem !important;
@@ -47,12 +50,12 @@ st.markdown("""
             margin-bottom: 0.3rem !important;
         }
         hr {
-            margin: 0.5rem 0rem !important;
+            margin: 0.6rem 0rem !important;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# Encabezado corporativo con separación adecuada para dispositivos móviles
+# Encabezado corporativo optimizado con separación superior adecuada
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
@@ -248,19 +251,21 @@ if df is not None:
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
 
-    # Fecha de actualización del archivo ubicada exactamente sobre la fila de búsqueda
-    st.markdown(f"<p style='color: #94A3B8; font-size: 0.8rem; margin-bottom: 2px;'>📅 Base actualizada: <b>{fecha_archivo_str}</b></p>", unsafe_allow_html=True)
+    # Bloque de Fecha y Título del buscador exactos a la imagen de referencia
+    st.markdown(f"<p style='color: #CBD5E1; font-size: 0.85rem; margin-bottom: 6px;'>📅 Base actualizada: <b>{fecha_archivo_str}</b></p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #FFFFFF; font-weight: bold; font-size: 0.95rem; margin-bottom: 4px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
 
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
 
-    # Fila única forzada lado a lado en móvil y escritorio
-    col_input, col_btn = st.columns([5, 1])
+    # Fila única perfecta: Campo de texto + Botón de la papelera en una sola línea
+    col_input, col_btn = st.columns([3.8, 1.2])
     with col_input:
         codigo = st.text_input(
-            "🔍 Buscar Código / Serie:",
+            "",
             value=st.session_state.busqueda_val,
-            key="input_codigo"
+            key="input_codigo",
+            placeholder="Ingrese código o serie..."
         ).strip()
     
     with col_btn:
