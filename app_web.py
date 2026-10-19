@@ -294,37 +294,36 @@ if df is not None:
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
 
-    # Fila única perfecta lado a lado en móvil y PC
+    # Fila única perfecta lado a lado en móvil y PC (sin key para control total del estado)
     col_input, col_btn = st.columns([4.2, 0.8])
     with col_input:
         codigo = st.text_input(
             "",
             value=st.session_state.busqueda_val,
-            key="input_codigo",
             placeholder="Ingrese código o serie..."
         ).strip()
+        
+        # Sincronizamos lo que el usuario escribe con la variable de sesión
+        if codigo != st.session_state.busqueda_val:
+            st.session_state.busqueda_val = codigo
     
     with col_btn:
         if st.button("🗑️", help="Limpiar búsqueda", use_container_width=True):
             st.session_state.busqueda_val = ""
             st.rerun()
 
-    # Actualizar estado de búsqueda de forma segura
-    if st.session_state.get("input_codigo") != st.session_state.busqueda_val:
-        st.session_state.busqueda_val = st.session_state.get("input_codigo", "")
-        codigo = st.session_state.busqueda_val
-
-    if codigo:
+    if st.session_state.busqueda_val:
+        busqueda_activa = st.session_state.busqueda_val
         res = df[
-            (df["Código del Bien"].str.lower() == codigo.lower()) |
-            (df["Serie/ Identificación"].str.lower() == codigo.lower()) |
-            (df["Código Anterior"].str.lower() == codigo.lower())
+            (df["Código del Bien"].str.lower() == busqueda_activa.lower()) |
+            (df["Serie/ Identificación"].str.lower() == busqueda_activa.lower()) |
+            (df["Código Anterior"].str.lower() == busqueda_activa.lower())
         ]
         
         if res.empty:
             res = df[
-                (df["Código del Bien"].str.contains(codigo, case=False, na=False)) |
-                (df["Serie/ Identificación"].str.contains(codigo, case=False, na=False))
+                (df["Código del Bien"].str.contains(busqueda_activa, case=False, na=False)) |
+                (df["Serie/ Identificación"].str.contains(busqueda_activa, case=False, na=False))
             ]
             
         if not res.empty:
@@ -376,6 +375,6 @@ if df is not None:
             )
                 
         else:
-            st.error(f"❌ No se encontró ningún bien con el código: {codigo}")
+            st.error(f"❌ No se encontró ningún bien con el código: {busqueda_activa}")
 else:
     st.warning("⚠️ No se encontró ningún archivo Excel válido o no se pudo cargar.")
