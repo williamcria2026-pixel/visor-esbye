@@ -57,6 +57,25 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Función inteligente para detectar cualquier archivo de escudo
+def obtener_ruta_escudo():
+    for f in os.listdir('.'):
+        if f.lower().startswith('escudo'):
+            return f
+    return None
+
+# Barra lateral con opciones e indicador de estado del escudo
+with st.sidebar:
+    st.header("⚙️ Opciones")
+    archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
+    
+    st.divider()
+    escudo_detectado = obtener_ruta_escudo()
+    if escudo_detectado:
+        st.success(f"🛡️ Escudo activo: `{escudo_detectado}`")
+    else:
+        st.warning("⚠️ No se detectó archivo 'escudo.png' en el repositorio.")
+
 # Encabezado corporativo optimizado
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
@@ -84,14 +103,7 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
-# Función inteligente para detectar cualquier archivo de escudo (png, jpg, etc.)
-def obtener_ruta_escudo():
-    for f in os.listdir('.'):
-        if f.lower().startswith('escudo'):
-            return f
-    return None
-
-# Función para generar el PDF del Acta con el Escudo institucional centrado
+# Función para generar el PDF del Acta con procesamiento robusto de imagen en memoria
 def generar_acta_pdf(row, fecha_acta_str):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -112,18 +124,23 @@ def generar_acta_pdf(row, fecha_acta_str):
     normal_small = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontSize=7, leading=8)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
-    # Inserción automática del escudo detectado
+    # Procesamiento robusto del escudo: convierte cualquier formato a PNG limpio en memoria
     escudo_path = obtener_ruta_escudo()
     if escudo_path and os.path.exists(escudo_path):
         try:
-            with PILImage.open(escudo_path) as img_test:
-                img_test.verify()
-            img_escudo = RLImage(escudo_path, width=0.6*inch, height=0.6*inch)
+            with PILImage.open(escudo_path) as pil_img:
+                if pil_img.mode in ("RGBA", "P"):
+                    pil_img = pil_img.convert("RGB")
+                img_buffer = io.BytesIO()
+                pil_img.save(img_buffer, format='PNG')
+                img_buffer.seek(0)
+            
+            img_escudo = RLImage(img_buffer, width=0.6*inch, height=0.6*inch)
             img_escudo.hAlign = 'CENTER'
             story.append(img_escudo)
             story.append(Spacer(1, 4))
-        except Exception:
-            pass 
+        except Exception as e:
+            print(f"Error procesando escudo: {e}")
 
     # 1. Encabezado Institucional (TODO CENTRADO)
     story.append(Paragraph("MINISTERIO DE ECONOMÍA Y FINANZAS", title_style))
@@ -230,10 +247,6 @@ def generar_acta_pdf(row, fecha_acta_str):
     return buffer
 
 archivos_excel = [f for f in os.listdir('.') if f.endswith('.xlsx') or f.endswith('.xls')]
-
-with st.sidebar:
-    st.header("⚙️ Opciones")
-    archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
 
 df = None
 fecha_archivo_str = datetime.now().strftime("%d/%m/%Y")
