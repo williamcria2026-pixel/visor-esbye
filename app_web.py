@@ -41,7 +41,7 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
-# Función para generar el PDF del Acta con el Escudo y centrado exacto
+# Función para generar el PDF del Acta con validación segura de imagen
 def generar_acta_pdf(row):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -62,13 +62,16 @@ def generar_acta_pdf(row):
     normal_small = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontSize=7, leading=8)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
-    # Inserción del Escudo del Ecuador (busca 'escudo.png' en el repositorio)
+    # Verificación segura del escudo (evita que la app falle si la imagen está corrupta)
     escudo_path = "escudo.png"
     if os.path.exists(escudo_path):
-        img_escudo = RLImage(escudo_path, width=0.6*inch, height=0.6*inch)
-        img_escudo.hAlign = 'CENTER'
-        story.append(img_escudo)
-        story.append(Spacer(1, 4))
+        try:
+            img_escudo = RLImage(escudo_path, width=0.6*inch, height=0.6*inch)
+            img_escudo.hAlign = 'CENTER'
+            story.append(img_escudo)
+            story.append(Spacer(1, 4))
+        except Exception:
+            pass # Si el archivo no es una imagen válida, lo omite sin causar errores
 
     # 1. Encabezado Institucional (TODO CENTRADO)
     story.append(Paragraph("MINISTERIO DE ECONOMÍA Y FINANZAS", title_style))
@@ -144,7 +147,7 @@ def generar_acta_pdf(row):
     story.append(t)
     story.append(Spacer(1, 25))
 
-    # 3. Sección de Firmas (LÍNEAS Y TEXTOS 100% CENTRADOS, NOMBRE SIN NEGRITA)
+    # 3. Sección de Firmas (LÍNEAS Y TEXTOS 100% CENTRADOS)
     custodio_dinamico = limpiar_val(row.get('Custodio Actual'))
 
     cell_entrega = [
