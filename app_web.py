@@ -16,7 +16,7 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# Estilos CSS avanzados para replicar exactamente la distribución de la imagen
+# Estilos CSS avanzados para forzar que el buscador y el botón estén siempre lado a lado en celulares
 st.markdown("""
     <style>
         .block-container {
@@ -25,20 +25,24 @@ st.markdown("""
             padding-left: 0.8rem;
             padding-right: 0.8rem;
         }
-        /* Forzar distribución en una sola fila para buscador y botón de limpiar */
-        div[data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            align-items: center !important;
-            gap: 0.4rem !important;
+        /* Forzar distribución horizontal estricta incluso en pantallas verticales de celulares */
+        @media (max-width: 768px) {
+            div[data-testid="stHorizontalBlock"] {
+                display: flex !important;
+                flex-direction: row !important;
+                align-items: flex-end !important;
+                gap: 0.4rem !important;
+            }
+            div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+                width: auto !important;
+                flex: 1 1 auto !important;
+                min-width: 0px !important;
+            }
+            div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
+                flex: 0 0 55px !important;
+            }
         }
-        div[data-testid="stHorizontalBlock"] > div:first-child {
-            flex: 3.8 1 0% !important;
-        }
-        div[data-testid="stHorizontalBlock"] > div:last-child {
-            flex: 1.2 1 0% !important;
-        }
-        /* Ocultar etiquetas predeterminadas para nivelar perfectamente */
+        /* Ocultar etiquetas predeterminadas del input */
         div[data-testid="stTextInput"] label {
             display: none !important;
         }
@@ -55,7 +59,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Encabezado corporativo optimizado con separación superior adecuada
+# Encabezado corporativo optimizado
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
@@ -251,15 +255,15 @@ if df is not None:
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
 
-    # Bloque de Fecha y Título del buscador exactos a la imagen de referencia
-    st.markdown(f"<p style='color: #CBD5E1; font-size: 0.85rem; margin-bottom: 6px;'>📅 Base actualizada: <b>{fecha_archivo_str}</b></p>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #FFFFFF; font-weight: bold; font-size: 0.95rem; margin-bottom: 4px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
+    # Bloque de Fecha y Título del buscador exactos
+    st.markdown(f"<p style='color: #CBD5E1; font-size: 0.85rem; margin-bottom: 4px;'>📅 Base actualizada: <b>{fecha_archivo_str}</b></p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #FFFFFF; font-weight: bold; font-size: 0.95rem; margin-bottom: 2px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
 
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
 
-    # Fila única perfecta: Campo de texto + Botón de la papelera en una sola línea
-    col_input, col_btn = st.columns([3.8, 1.2])
+    # Fila única forzada lado a lado tanto en PC como en Móvil
+    col_input, col_btn = st.columns([4.2, 0.8])
     with col_input:
         codigo = st.text_input(
             "",
