@@ -41,7 +41,7 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
-# Función para generar el PDF del Acta con el Escudo y formato exacto
+# Función para generar el PDF del Acta con el Escudo y centrado exacto
 def generar_acta_pdf(row):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -55,15 +55,14 @@ def generar_acta_pdf(row):
     story = []
     styles = getSampleStyleSheet()
 
-    # Estilos de texto
+    # Estilos de texto CENTRADOS
     title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=11, leading=13, alignment=1, fontName="Helvetica-Bold")
-    subtitle_style = ParagraphStyle('SubTitleStyle', parent=styles['Normal'], fontSize=9, leading=12, alignment=0)
-    center_subtitle_style = ParagraphStyle('CenterSubTitleStyle', parent=styles['Normal'], fontSize=9, leading=12, alignment=1)
+    subtitle_style_center = ParagraphStyle('SubTitleStyleCenter', parent=styles['Normal'], fontSize=9, leading=12, alignment=1)
     acta_title = ParagraphStyle('ActaTitle', parent=styles['Heading2'], fontSize=10, leading=12, alignment=1, fontName="Helvetica-Bold")
     normal_small = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontSize=7, leading=8)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
-    # Inserción del Escudo del Ecuador (busca la imagen 'escudo.png' en el repositorio)
+    # Inserción del Escudo del Ecuador (busca 'escudo.png' en el repositorio)
     escudo_path = "escudo.png"
     if os.path.exists(escudo_path):
         img_escudo = RLImage(escudo_path, width=0.6*inch, height=0.6*inch)
@@ -71,9 +70,9 @@ def generar_acta_pdf(row):
         story.append(img_escudo)
         story.append(Spacer(1, 4))
 
-    # 1. Encabezado Institucional (FIJO)
+    # 1. Encabezado Institucional (TODO CENTRADO)
     story.append(Paragraph("MINISTERIO DE ECONOMÍA Y FINANZAS", title_style))
-    story.append(Paragraph("176-9999-0000-UNIVERSIDAD TÉCNICA DE AMBATO - PLANTA CENTRAL", subtitle_style))
+    story.append(Paragraph("176-9999-0000-UNIVERSIDAD TÉCNICA DE AMBATO - PLANTA CENTRAL", subtitle_style_center))
     story.append(Spacer(1, 4))
     story.append(Paragraph("ACTA DE ASIGNACIÓN - REASIGNACIÓN DE BIENES", acta_title))
     story.append(Spacer(1, 6))
@@ -145,29 +144,29 @@ def generar_acta_pdf(row):
     story.append(t)
     story.append(Spacer(1, 25))
 
-    # 3. Sección de Firmas (Exacto a la referencia visual)
+    # 3. Sección de Firmas (LÍNEAS Y TEXTOS 100% CENTRADOS, NOMBRE SIN NEGRITA)
     custodio_dinamico = limpiar_val(row.get('Custodio Actual'))
 
     cell_entrega = [
-        Paragraph("________________________________________", subtitle_style),
+        Paragraph("________________________________________", subtitle_style_center),
         Spacer(1, 4),
-        Paragraph(f"<b>{custodio_dinamico}</b>", center_subtitle_style),
-        Paragraph("<b>QUIEN ENTREGA</b>", center_subtitle_style)
+        Paragraph(f"{custodio_dinamico}", subtitle_style_center),
+        Paragraph("<b>QUIEN ENTREGA</b>", subtitle_style_center)
     ]
 
     cell_recibe = [
-        Paragraph("________________________________________", subtitle_style),
+        Paragraph("________________________________________", subtitle_style_center),
         Spacer(1, 4),
-        Paragraph("Nombre: ...................................................", subtitle_style),
-        Paragraph("C.I.: ...........................................................", subtitle_style),
+        Paragraph("Nombre: ...................................................", subtitle_style_center),
+        Paragraph("C.I.: ...........................................................", subtitle_style_center),
         Spacer(1, 4),
-        Paragraph("<b>QUIEN RECIBE</b>", center_subtitle_style)
+        Paragraph("<b>QUIEN RECIBE</b>", subtitle_style_center)
     ]
 
     firmas_data = [[cell_entrega, cell_recibe]]
     firmas_table = Table(firmas_data, colWidths=[370, 370])
     firmas_table.setStyle(TableStyle([
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]))
     story.append(firmas_table)
@@ -252,7 +251,7 @@ if df is not None:
             else:
                 val_contable_fmt = "-"
 
-            # Pestañas organizadas en el orden correcto
+            # Pestañas organizadas
             tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
             
             with tab1:
