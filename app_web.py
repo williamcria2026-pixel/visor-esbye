@@ -37,7 +37,7 @@ st.markdown("""
         /* Ajuste para alinear perfectamente el input y el botón de limpiar en una fila */
         div[data-testid="stHorizontalBlock"] {
             align-items: flex-end;
-            gap: 0.5rem;
+            gap: 0.4rem;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -45,7 +45,6 @@ st.markdown("""
 # Encabezado corporativo optimizado
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
-st.divider()
 
 # Función para limpiar valores nulos o 'nan' y corregir DISENIO a DISEÑO
 def limpiar_val(val):
@@ -76,7 +75,7 @@ def obtener_ruta_escudo():
     return None
 
 # Función para generar el PDF del Acta con validación estricta de imagen
-def generar_acta_pdf(row):
+def generar_acta_pdf(row, fecha_acta_str):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -116,8 +115,7 @@ def generar_acta_pdf(row):
     story.append(Paragraph("ACTA DE ASIGNACIÓN - REASIGNACIÓN DE BIENES", acta_title))
     story.append(Spacer(1, 6))
 
-    fecha_actual = datetime.now().strftime("%d/%m/%Y")
-    story.append(Paragraph(f"<b>FECHA:</b> {fecha_actual}", normal_small))
+    story.append(Paragraph(f"<b>FECHA:</b> {fecha_acta_str}", normal_small))
     story.append(Spacer(1, 4))
 
     # 2. Tabla de Datos Dinámica
@@ -158,7 +156,7 @@ def generar_acta_pdf(row):
         Paragraph(limpiar_val(row.get('Ubicación de Bodega')), normal_small),
         Paragraph("BLD", normal_small),
         Paragraph("-", normal_small),
-        Paragraph(fecha_actual, normal_small),
+        Paragraph(fecha_acta_str, normal_small),
         Paragraph("1", normal_small),
         Paragraph(val_contable_str, normal_small)
     ]
@@ -221,30 +219,29 @@ with st.sidebar:
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
 
 df = None
-nombre_fuente = None
-fecha_mod = ""
+fecha_archivo_str = datetime.now().strftime("%d/%m/%Y")
 
 if archivo_subido is not None:
     df = cargar_excel(archivo_subido)
-    nombre_fuente = archivo_subido.name
-    fecha_mod = time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())
 elif archivos_excel:
     archivo_local = archivos_excel[0]
     df = cargar_excel(archivo_local)
-    nombre_fuente = archivo_local
-    timestamp = os.path.getmtime(archivo_local)
-    fecha_mod = time.strftime('%d/%m/%Y %H:%M:%S', time.localtime(timestamp))
+    try:
+        timestamp = os.path.getmtime(archivo_local)
+        fecha_archivo_str = time.strftime('%d/%m/%Y', time.localtime(timestamp))
+    except:
+        pass
 
 if df is not None:
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
 
-    st.caption(f"🟢 **Reporte:** {nombre_fuente} ({len(df):,} reg.) | 📅 {fecha_mod}")
+    st.divider()
 
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
 
-    # Fila única optimizada: Campo de texto con el ancho justo + Botón de limpiar con icono de cesta
+    # Fila única optimizada: Campo de texto con el ancho del texto + Botón de limpiar con icono de cesta
     col_input, col_btn = st.columns([4.2, 0.8])
     with col_input:
         codigo = st.text_input(
@@ -306,7 +303,7 @@ if df is not None:
 
             st.divider()
             
-            pdf_bytes = generar_acta_pdf(row)
+            pdf_bytes = generar_acta_pdf(row, fecha_archivo_str)
             cod_bien_clean = str(row.get('Código del Bien', 'Bien')).replace('/', '_')
             fecha_nom = datetime.now().strftime("%d-%m-%Y")
             nombre_archivo_pdf = f"Acta_{cod_bien_clean}_{fecha_nom}.pdf"
