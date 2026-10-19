@@ -13,12 +13,30 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 
-# Configuración de la página
+# Configuración de la página y diseño compacto para móviles
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# Encabezado corporativo
-st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>CONSULTA RÁPIDA DE BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
+# Estilos CSS personalizados para eliminar espacios vacíos en móviles y dar un diseño limpio
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 1.5rem;
+            padding-bottom: 1.5rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        h2 {
+            margin-bottom: 0px !important;
+        }
+        hr {
+            margin: 0.8rem 0rem !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Encabezado corporativo optimizado
+st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.9rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
 # Función para limpiar valores nulos o 'nan' y corregir DISENIO a DISEÑO
@@ -42,6 +60,13 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
+# Función para encontrar el escudo sin problemas de mayúsculas/minúsculas
+def obtener_ruta_escudo():
+    for f in os.listdir('.'):
+        if f.lower() == 'escudo.png':
+            return f
+    return None
+
 # Función para generar el PDF del Acta con validación estricta de imagen
 def generar_acta_pdf(row):
     buffer = io.BytesIO()
@@ -63,9 +88,9 @@ def generar_acta_pdf(row):
     normal_small = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontSize=7, leading=8)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
-    # Verificación estricta del escudo con Pillow
-    escudo_path = "escudo.png"
-    if os.path.exists(escudo_path):
+    # Inserción segura del escudo detectado automáticamente
+    escudo_path = obtener_ruta_escudo()
+    if escudo_path and os.path.exists(escudo_path):
         try:
             with PILImage.open(escudo_path) as img_test:
                 img_test.verify()
@@ -74,7 +99,7 @@ def generar_acta_pdf(row):
             story.append(img_escudo)
             story.append(Spacer(1, 4))
         except Exception:
-            pass # Si la imagen está dañada o no es válida, la omite sin causar errores
+            pass 
 
     # 1. Encabezado Institucional (TODO CENTRADO)
     story.append(Paragraph("MINISTERIO DE ECONOMÍA Y FINANZAS", title_style))
