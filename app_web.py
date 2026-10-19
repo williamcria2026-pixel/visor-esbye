@@ -66,7 +66,6 @@ with st.sidebar:
     st.subheader("🛡️ Escudo Institucional")
     escudo_subido = st.file_uploader("Subir imagen del escudo", type=["png", "jpg", "jpeg"], key="uploader_escudo")
     
-    # Si el usuario sube el escudo desde la web, lo guardamos localmente como 'escudo.png'
     if escudo_subido is not None:
         try:
             with open("escudo.png", "wb") as f:
@@ -75,7 +74,6 @@ with st.sidebar:
         except Exception as e:
             st.error(f"Error al guardar: {e}")
 
-    # Verificar estado actual del escudo
     escudo_activo = False
     for f in os.listdir('.'):
         if f.lower().startswith('escudo'):
@@ -121,7 +119,7 @@ def obtener_ruta_escudo():
             return f
     return None
 
-# Función para generar el PDF del Acta con procesamiento robusto de imagen en memoria
+# Función para generar el PDF del Acta con el Escudo a la izquierda y fondo blanco
 def generar_acta_pdf(row, fecha_acta_str):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -135,37 +133,55 @@ def generar_acta_pdf(row, fecha_acta_str):
     story = []
     styles = getSampleStyleSheet()
 
-    # Estilos de texto CENTRADOS
+    # Estilos de texto
     title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=11, leading=13, alignment=1, fontName="Helvetica-Bold")
     subtitle_style_center = ParagraphStyle('SubTitleStyleCenter', parent=styles['Normal'], fontSize=9, leading=12, alignment=1)
     acta_title = ParagraphStyle('ActaTitle', parent=styles['Heading2'], fontSize=10, leading=12, alignment=1, fontName="Helvetica-Bold")
     normal_small = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontSize=7, leading=8)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
-    # Inserción segura del escudo desde el archivo local procesado
+    # Procesamiento del escudo con fondo blanco obligatorio
     escudo_path = obtener_ruta_escudo()
+    img_flowable = Paragraph("", normal_small)
     if escudo_path and os.path.exists(escudo_path):
         try:
             with PILImage.open(escudo_path) as pil_img:
-                if pil_img.mode in ("RGBA", "P"):
-                    pil_img = pil_img.convert("RGB")
+                # Forzar fondo blanco puro eliminando transparencias oscuras
+                bg = PILImage.new("RGB", pil_img.size, (255, 255, 255))
+                if pil_img.mode == "RGBA":
+                    bg.paste(pil_img, mask=pil_img.split()[3])
+                else:
+                    bg.paste(pil_img)
+                
                 img_buffer = io.BytesIO()
-                pil_img.save(img_buffer, format='PNG')
+                bg.save(img_buffer, format='PNG')
                 img_buffer.seek(0)
             
-            img_escudo = RLImage(img_buffer, width=0.6*inch, height=0.6*inch)
-            img_escudo.hAlign = 'CENTER'
-            story.append(img_escudo)
-            story.append(Spacer(1, 4))
+            img_escudo = RLImage(img_buffer, width=0.65*inch, height=0.65*inch)
+            img_escudo.hAlign = 'LEFT'
+            img_flowable = img_escudo
         except Exception as e:
             print(f"Error procesando escudo: {e}")
 
-    # 1. Encabezado Institucional (TODO CENTRADO)
-    story.append(Paragraph("MINISTERIO DE ECONOMÍA Y FINANZAS", title_style))
-    story.append(Paragraph("176-9999-0000-UNIVERSIDAD TÉCNICA DE AMBATO - PLANTA CENTRAL", subtitle_style_center))
+    # 1. Encabezado institucional en Tabla (Escudo a la izquierda, textos centrados al lado)[cite: 16]
+    header_text_elements = [
+        Paragraph("MINISTERIO DE ECONOMÍA Y FINANZAS", title_style),
+        Paragraph("176-9999-0000-UNIVERSIDAD TÉCNICA DE AMBATO - PLANTA CENTRAL", subtitle_style_center),
+        Spacer(1, 3),
+        Paragraph("ACTA DE ASIGNACIÓN - REASIGNACIÓN DE BIENES", acta_title)
+    ]
+
+    header_table_data = [[img_flowable, header_text_elements]]
+    header_table_obj = Table(header_table_data, colWidths=[1.0*inch, 9.2*inch])
+    header_table_obj.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(header_table_obj)
     story.append(Spacer(1, 4))
-    story.append(Paragraph("ACTA DE ASIGNACIÓN - REASIGNACIÓN DE BIENES", acta_title))
-    story.append(Spacer(1, 6))
 
     story.append(Paragraph(f"<b>FECHA:</b> {fecha_acta_str}", normal_small))
     story.append(Spacer(1, 4))
