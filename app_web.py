@@ -57,7 +57,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Barra lateral con opciones de carga para el Excel y el Escudo
+# Barra lateral limpia y optimizada
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
@@ -66,24 +66,13 @@ with st.sidebar:
     st.subheader("🛡️ Escudo Institucional")
     escudo_subido = st.file_uploader("Subir imagen del escudo", type=["png", "jpg", "jpeg"], key="uploader_escudo")
     
+    # Guardado automático silencioso y eficiente
     if escudo_subido is not None:
         try:
             with open("escudo.png", "wb") as f:
                 f.write(escudo_subido.getbuffer())
-            st.success("✅ ¡Escudo cargado con éxito!")
-        except Exception as e:
-            st.error(f"Error al guardar: {e}")
-
-    escudo_activo = False
-    for f in os.listdir('.'):
-        if f.lower().startswith('escudo'):
-            escudo_activo = True
-            break
-            
-    if escudo_activo:
-        st.info("🛡️ Estado: **Escudo disponible**")
-    else:
-        st.warning("⚠️ Sube una imagen de escudo arriba.")
+        except Exception:
+            pass
 
 # Encabezado corporativo optimizado
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -146,7 +135,6 @@ def generar_acta_pdf(row, fecha_acta_str):
     if escudo_path and os.path.exists(escudo_path):
         try:
             with PILImage.open(escudo_path) as pil_img:
-                # Forzar fondo blanco puro eliminando transparencias oscuras
                 bg = PILImage.new("RGB", pil_img.size, (255, 255, 255))
                 if pil_img.mode == "RGBA":
                     bg.paste(pil_img, mask=pil_img.split()[3])
@@ -163,7 +151,7 @@ def generar_acta_pdf(row, fecha_acta_str):
         except Exception as e:
             print(f"Error procesando escudo: {e}")
 
-    # 1. Encabezado institucional en Tabla (Escudo a la izquierda, textos centrados al lado)[cite: 16]
+    # 1. Encabezado institucional en Tabla (Escudo a la izquierda, textos centrados al lado)
     header_text_elements = [
         Paragraph("MINISTERIO DE ECONOMÍA Y FINANZAS", title_style),
         Paragraph("176-9999-0000-UNIVERSIDAD TÉCNICA DE AMBATO - PLANTA CENTRAL", subtitle_style_center),
