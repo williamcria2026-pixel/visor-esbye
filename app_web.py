@@ -66,7 +66,6 @@ with st.sidebar:
     st.subheader("🛡️ Escudo Institucional")
     escudo_subido = st.file_uploader("Subir imagen del escudo", type=["png", "jpg", "jpeg"], key="uploader_escudo")
     
-    # Guardado automático silencioso y eficiente
     if escudo_subido is not None:
         try:
             with open("escudo.png", "wb") as f:
@@ -308,7 +307,13 @@ if df is not None:
     with col_btn:
         if st.button("🗑️", help="Limpiar búsqueda", use_container_width=True):
             st.session_state.busqueda_val = ""
+            if "input_codigo" in st.session_state:
+                st.session_state.input_codigo = ""
             st.rerun()
+
+    # Sincronizar estado si el usuario escribe directamente
+    if st.session_state.get("input_codigo") != st.session_state.busqueda_val:
+        st.session_state.busqueda_val = st.session_state.get("input_codigo", "")
 
     if codigo:
         res = df[
