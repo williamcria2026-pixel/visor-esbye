@@ -1,4 +1,4 @@
-import streamlit as st
+iimport streamlit as st
 import pandas as pd
 import os
 import time
@@ -16,7 +16,7 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# Estilos CSS avanzados para forzar que el buscador y el botón estén siempre lado a lado en celulares
+# Estilos CSS avanzados para mantener el buscador y el botón perfectamente alineados
 st.markdown("""
     <style>
         .block-container {
@@ -25,7 +25,6 @@ st.markdown("""
             padding-left: 0.8rem;
             padding-right: 0.8rem;
         }
-        /* Forzar distribución horizontal estricta incluso en pantallas verticales de celulares */
         @media (max-width: 768px) {
             div[data-testid="stHorizontalBlock"] {
                 display: flex !important;
@@ -42,7 +41,6 @@ st.markdown("""
                 flex: 0 0 55px !important;
             }
         }
-        /* Ocultar etiquetas predeterminadas del input */
         div[data-testid="stTextInput"] label {
             display: none !important;
         }
@@ -86,14 +84,14 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
-# Función para encontrar el escudo sin problemas de mayúsculas/minúsculas
+# Función inteligente para detectar cualquier archivo de escudo (png, jpg, etc.)
 def obtener_ruta_escudo():
     for f in os.listdir('.'):
-        if f.lower() == 'escudo.png':
+        if f.lower().startswith('escudo'):
             return f
     return None
 
-# Función para generar el PDF del Acta con validación estricta de imagen
+# Función para generar el PDF del Acta con el Escudo institucional centrado
 def generar_acta_pdf(row, fecha_acta_str):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -114,7 +112,7 @@ def generar_acta_pdf(row, fecha_acta_str):
     normal_small = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontSize=7, leading=8)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
-    # Inserción segura del escudo detectado automáticamente
+    # Inserción automática del escudo detectado
     escudo_path = obtener_ruta_escudo()
     if escudo_path and os.path.exists(escudo_path):
         try:
@@ -255,14 +253,14 @@ if df is not None:
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
 
-    # Bloque de Fecha y Título del buscador exactos
+    # Bloque de Fecha y Título del buscador
     st.markdown(f"<p style='color: #CBD5E1; font-size: 0.85rem; margin-bottom: 4px;'>📅 Base actualizada: <b>{fecha_archivo_str}</b></p>", unsafe_allow_html=True)
     st.markdown("<p style='color: #FFFFFF; font-weight: bold; font-size: 0.95rem; margin-bottom: 2px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
 
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
 
-    # Fila única forzada lado a lado tanto en PC como en Móvil
+    # Fila única perfecta lado a lado en móvil y PC
     col_input, col_btn = st.columns([4.2, 0.8])
     with col_input:
         codigo = st.text_input(
