@@ -13,30 +13,38 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 
-# Configuración de la página y diseño compacto para móviles
+# Configuración de la página y diseño ultra compacto para móviles
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# Estilos CSS personalizados para eliminar espacios vacíos en móviles y dar un diseño limpio
+# Estilos CSS para compactar filas, interlineados y alinear el buscador en una sola línea
 st.markdown("""
     <style>
         .block-container {
-            padding-top: 1.5rem;
-            padding-bottom: 1.5rem;
-            padding-left: 1rem;
-            padding-right: 1rem;
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+            padding-left: 0.8rem;
+            padding-right: 0.8rem;
         }
         h2 {
-            margin-bottom: 0px !important;
+            margin-bottom: -0.5rem !important;
+        }
+        p {
+            margin-bottom: 0.3rem !important;
         }
         hr {
-            margin: 0.8rem 0rem !important;
+            margin: 0.5rem 0rem !important;
+        }
+        /* Ajuste para alinear perfectamente el input y el botón de limpiar en una fila */
+        div[data-testid="stHorizontalBlock"] {
+            align-items: flex-end;
+            gap: 0.5rem;
         }
     </style>
 """, unsafe_allow_html=True)
 
 # Encabezado corporativo optimizado
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.9rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
 # Función para limpiar valores nulos o 'nan' y corregir DISENIO a DISEÑO
@@ -231,23 +239,22 @@ if df is not None:
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
 
-    st.caption(f"🟢 **Reporte:** {nombre_fuente} ({len(df):,} registros) | 📅 **Actualizado:** {fecha_mod}")
+    st.caption(f"🟢 **Reporte:** {nombre_fuente} ({len(df):,} reg.) | 📅 {fecha_mod}")
 
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
 
-    col_input, col_btn = st.columns([4, 1])
+    # Fila única optimizada: Campo de texto con el ancho justo + Botón de limpiar con icono de cesta
+    col_input, col_btn = st.columns([4.2, 0.8])
     with col_input:
         codigo = st.text_input(
-            "🔍 Ingrese o escanee el Código del Bien / Serie:",
+            "🔍 Buscar Código / Serie:",
             value=st.session_state.busqueda_val,
             key="input_codigo"
         ).strip()
     
     with col_btn:
-        st.write(" ")
-        st.write(" ")
-        if st.button("🗑️ Limpiar", use_container_width=True):
+        if st.button("🗑️", help="Limpiar búsqueda", use_container_width=True):
             st.session_state.busqueda_val = ""
             st.rerun()
 
@@ -267,10 +274,10 @@ if df is not None:
         if not res.empty:
             row = res.iloc[0]
             
-            st.success(f"📌 **BIEN ENCONTRADO:** {limpiar_val(row.get('Bien'))}")
+            st.success(f"📌 **BIEN:** {limpiar_val(row.get('Bien'))}")
             
             ubicacion_bodega = limpiar_val(row.get('Ubicación de Bodega'))
-            st.info(f"🏢 **UBICACIÓN DE BODEGA:** {ubicacion_bodega}")
+            st.info(f"🏢 **BODEGA:** {ubicacion_bodega}")
             
             val_contable = row.get('Valor Contable', '-')
             val_contable_clean = limpiar_val(val_contable)
@@ -282,7 +289,7 @@ if df is not None:
             else:
                 val_contable_fmt = "-"
 
-            # Pestañas organizadas
+            # Pestañas compactas
             tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
             
             with tab1:
