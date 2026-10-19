@@ -11,6 +11,7 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
+from reportlab.graphics.shapes import Drawing, Rect
 
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
@@ -20,11 +21,13 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>CONSULTA RÁPIDA DE
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Función para limpiar valores nulos o 'nan'
+# Función para limpiar valores nulos o 'nan' y corregir DISENIO a DISEÑO
 def limpiar_val(val):
     if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
         return "-"
-    return str(val).strip()
+    texto = str(val).strip()
+    texto = texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
+    return texto
 
 # Función para cargar archivos Excel con múltiples motores
 def cargar_excel(origen):
@@ -39,7 +42,7 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
-# Función para generar el PDF del Acta con formato dinámico
+# Función para generar el PDF del Acta con el Escudo y formato exacto
 def generar_acta_pdf(row):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -60,16 +63,25 @@ def generar_acta_pdf(row):
     normal_small = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontSize=7, leading=8)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
+    # Gráfico vectorial del Escudo del Ecuador (Emblema Institucional)
+    d = Drawing(40, 36)
+    d.add(Rect(2, 2, 36, 32, fillColor=colors.HexColor('#F3F4F6'), strokeColor=colors.HexColor('#1E3A8A'), strokeWidth=1, rx=4, ry=4))
+    d.add(Rect(6, 24, 28, 6, fillColor=colors.HexColor('#FFD100'), strokeColor=None))
+    d.add(Rect(6, 18, 28, 6, fillColor=colors.HexColor('#0055A5'), strokeColor=None))
+    d.add(Rect(6, 12, 28, 6, fillColor=colors.HexColor('#EF3340'), strokeColor=None))
+    story.append(d)
+    story.append(Spacer(1, 4))
+
     # 1. Encabezado Institucional (FIJO)
     story.append(Paragraph("MINISTERIO DE ECONOMÍA Y FINANZAS", title_style))
     story.append(Paragraph("176-9999-0000-UNIVERSIDAD TÉCNICA DE AMBATO - PLANTA CENTRAL", subtitle_style))
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 4))
     story.append(Paragraph("ACTA DE ASIGNACIÓN - REASIGNACIÓN DE BIENES", acta_title))
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 6))
 
     fecha_actual = datetime.now().strftime("%d/%m/%Y")
     story.append(Paragraph(f"<b>FECHA:</b> {fecha_actual}", normal_small))
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 4))
 
     # 2. Tabla de Datos Dinámica
     col_widths = [55, 55, 120, 65, 55, 75, 90, 40, 50, 50, 30, 55]
@@ -132,9 +144,9 @@ def generar_acta_pdf(row):
         ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#F3F4F6')),
     ]))
     story.append(t)
-    story.append(Spacer(1, 35))
+    story.append(Spacer(1, 25))
 
-    # 3. Sección de Firmas Dinámica
+    # 3. Sección de Firmas (Sin línea en blanco entre Nombre y C.I.)
     custodio_dinamico = limpiar_val(row.get('Custodio Actual'))
     bodega_dinamica = limpiar_val(row.get('Ubicación de Bodega'))
 
@@ -148,8 +160,9 @@ def generar_acta_pdf(row):
     
     firma_recibe = Paragraph(
         f"<br/>________________________________________<br/>"
-        f"<b>CUSTODIO RECEPCIONA</b><br/>"
-        f"FIRMA Y FECHA", 
+        f"<b>QUIEN RECIBE</b><br/>"
+        f"Nombre: ...................................................<br/>"
+        f"C.I.: ...........................................................", 
         subtitle_style
     )
 
