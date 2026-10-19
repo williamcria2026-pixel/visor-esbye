@@ -4,6 +4,7 @@ import os
 import time
 from datetime import datetime
 import io
+from PIL import Image as PILImage
 
 # ReportLab para la generación del Acta PDF en formato horizontal (Landscape)
 from reportlab.lib.pagesizes import letter, landscape
@@ -41,7 +42,7 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
-# Función para generar el PDF del Acta con validación segura de imagen
+# Función para generar el PDF del Acta con validación estricta de imagen
 def generar_acta_pdf(row):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -62,16 +63,18 @@ def generar_acta_pdf(row):
     normal_small = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontSize=7, leading=8)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
-    # Verificación segura del escudo (evita que la app falle si la imagen está corrupta)
+    # Verificación estricta del escudo con Pillow
     escudo_path = "escudo.png"
     if os.path.exists(escudo_path):
         try:
+            with PILImage.open(escudo_path) as img_test:
+                img_test.verify()
             img_escudo = RLImage(escudo_path, width=0.6*inch, height=0.6*inch)
             img_escudo.hAlign = 'CENTER'
             story.append(img_escudo)
             story.append(Spacer(1, 4))
         except Exception:
-            pass # Si el archivo no es una imagen válida, lo omite sin causar errores
+            pass # Si la imagen está dañada o no es válida, la omite sin causar errores
 
     # 1. Encabezado Institucional (TODO CENTRADO)
     story.append(Paragraph("MINISTERIO DE ECONOMÍA Y FINANZAS", title_style))
