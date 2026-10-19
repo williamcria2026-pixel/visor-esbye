@@ -20,6 +20,12 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>CONSULTA RÁPIDA DE
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
+# Función para limpiar valores nulos o 'nan'
+def limpiar_val(val):
+    if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
+        return "-"
+    return str(val).strip()
+
 # Función para cargar archivos Excel con múltiples motores
 def cargar_excel(origen):
     for engine in ['calamine', 'openpyxl', None]:
@@ -33,7 +39,7 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
-# Función para generar el PDF del Acta con formato totalmente dinámico
+# Función para generar el PDF del Acta con formato dinámico
 def generar_acta_pdf(row):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -61,7 +67,6 @@ def generar_acta_pdf(row):
     story.append(Paragraph("ACTA DE ASIGNACIÓN - REASIGNACIÓN DE BIENES", acta_title))
     story.append(Spacer(1, 8))
 
-    # Fecha actual
     fecha_actual = datetime.now().strftime("%d/%m/%Y")
     story.append(Paragraph(f"<b>FECHA:</b> {fecha_actual}", normal_small))
     story.append(Spacer(1, 6))
@@ -84,23 +89,24 @@ def generar_acta_pdf(row):
     ]
 
     val_contable = row.get('Valor Contable', '-')
-    if val_contable not in ["nan", "None", "-", "."]:
+    val_contable_clean = limpiar_val(val_contable)
+    if val_contable_clean not in ["-", "."]:
         try:
-            val_contable_num = float(val_contable)
+            val_contable_num = float(val_contable_clean)
             val_contable_str = f"${val_contable_num:,.2f}"
         except:
-            val_contable_str = str(val_contable)
+            val_contable_str = val_contable_clean
     else:
         val_contable_str = "-"
 
     data_row = [
-        Paragraph(str(row.get('Código del Bien', '-')), normal_small),
-        Paragraph(str(row.get('Código Anterior', '-')), normal_small),
-        Paragraph(str(row.get('Bien', '-')), normal_small),
-        Paragraph(str(row.get('Serie/ Identificación', '-')), normal_small),
-        Paragraph(str(row.get('Modelo/ Características', '-')), normal_small),
-        Paragraph(str(row.get('Marca/ Otros', '-')), normal_small),
-        Paragraph(str(row.get('Ubicación de Bodega', '-')), normal_small),
+        Paragraph(limpiar_val(row.get('Código del Bien')), normal_small),
+        Paragraph(limpiar_val(row.get('Código Anterior')), normal_small),
+        Paragraph(limpiar_val(row.get('Bien')), normal_small),
+        Paragraph(limpiar_val(row.get('Serie/ Identificación')), normal_small),
+        Paragraph(limpiar_val(row.get('Modelo/ Características')), normal_small),
+        Paragraph(limpiar_val(row.get('Marca/ Otros')), normal_small),
+        Paragraph(limpiar_val(row.get('Ubicación de Bodega')), normal_small),
         Paragraph("BLD", normal_small),
         Paragraph("-", normal_small),
         Paragraph(fecha_actual, normal_small),
@@ -128,9 +134,9 @@ def generar_acta_pdf(row):
     story.append(t)
     story.append(Spacer(1, 35))
 
-    # 3. Sección de Firmas Dinámica (Custodio de la Búsqueda + Bodega)
-    custodio_dinamico = str(row.get('Custodio Actual', 'CUSTODIO NO ESPECIFICADO')).strip()
-    bodega_dinamica = str(row.get('Ubicación de Bodega', 'BODEGA NO ESPECIFICADA')).strip()
+    # 3. Sección de Firmas Dinámica
+    custodio_dinamico = limpiar_val(row.get('Custodio Actual'))
+    bodega_dinamica = limpiar_val(row.get('Ubicación de Bodega'))
 
     firma_entrega = Paragraph(
         f"<br/>________________________________________<br/>"
@@ -186,7 +192,6 @@ if df is not None:
 
     st.caption(f"🟢 **Reporte:** {nombre_fuente} ({len(df):,} registros) | 📅 **Actualizado:** {fecha_mod}")
 
-    # Control de estado de la búsqueda
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
 
@@ -221,39 +226,38 @@ if df is not None:
         if not res.empty:
             row = res.iloc[0]
             
-            # Título del bien
-            st.success(f"📌 **BIEN ENCONTRADO:** {row.get('Bien', '-')}")
+            st.success(f"📌 **BIEN ENCONTRADO:** {limpiar_val(row.get('Bien'))}")
             
-            # Ubicación de Bodega sin saltos sobrantes
-            ubicacion_bodega = str(row.get('Ubicación de Bodega', '-')).strip()
+            ubicacion_bodega = limpiar_val(row.get('Ubicación de Bodega'))
             st.info(f"🏢 **UBICACIÓN DE BODEGA:** {ubicacion_bodega}")
             
-            # Formateo de valor contable
             val_contable = row.get('Valor Contable', '-')
-            if val_contable not in ["nan", "None", "-", "."]:
+            val_contable_clean = limpiar_val(val_contable)
+            if val_contable_clean not in ["-", "."]:
                 try:
-                    val_contable = f"${float(val_contable):,.2f}"
+                    val_contable_fmt = f"${float(val_contable_clean):,.2f}"
                 except:
-                    pass
+                    val_contable_fmt = val_contable_clean
+            else:
+                val_contable_fmt = "-"
 
-            # Pestañas de información
+            # Pestañas organizadas
             tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
             
             with tab1:
-                st.write(f"**Marca:** {row.get('Marca/ Otros', '-')}")
-                st.write(f"**Modelo:** {row.get('Modelo/ Características', '-')}")
-                st.write(f"**Serie:** {row.get('Serie/ Identificación', '-')}")
-                st.write(f"**Valor Contable:** {val_contable}")
-                st.write(f"**Código del Bien:** {row.get('Código del Bien', '-')}")
-                st.write(f"**Código Anterior:** {row.get('Código Anterior', '-')}")
+                st.write(f"**Código del Bien:** {limpiar_val(row.get('Código del Bien'))}")
+                st.write(f"**Código Anterior:** {limpiar_val(row.get('Código Anterior'))}")
+                st.write(f"**Marca:** {limpiar_val(row.get('Marca/ Otros'))}")
+                st.write(f"**Modelo:** {limpiar_val(row.get('Modelo/ Características'))}")
+                st.write(f"**Serie:** {limpiar_val(row.get('Serie/ Identificación'))}")
+                st.write(f"**Valor Contable:** {val_contable_fmt}")
                 
             with tab2:
-                st.write(f"**Custodio Actual:** {row.get('Custodio Actual', '-')}")
-                st.write(f"**Número de Cédula / RUC:** {row.get('Nro de Cédula/ RUC', '-')}")
+                st.write(f"**Custodio Actual:** {limpiar_val(row.get('Custodio Actual'))}")
+                st.write(f"**Número de Cédula / RUC:** {limpiar_val(row.get('Nro de Cédula/ RUC'))}")
 
             st.divider()
             
-            # Botón para Generar y Descargar el Acta PDF Oficial
             pdf_bytes = generar_acta_pdf(row)
             cod_bien_clean = str(row.get('Código del Bien', 'Bien')).replace('/', '_')
             fecha_nom = datetime.now().strftime("%d-%m-%Y")
