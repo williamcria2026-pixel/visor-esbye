@@ -307,13 +307,12 @@ if df is not None:
     with col_btn:
         if st.button("🗑️", help="Limpiar búsqueda", use_container_width=True):
             st.session_state.busqueda_val = ""
-            if "input_codigo" in st.session_state:
-                st.session_state.input_codigo = ""
             st.rerun()
 
-    # Sincronizar estado si el usuario escribe directamente
+    # Actualizar estado de búsqueda de forma segura
     if st.session_state.get("input_codigo") != st.session_state.busqueda_val:
         st.session_state.busqueda_val = st.session_state.get("input_codigo", "")
+        codigo = st.session_state.busqueda_val
 
     if codigo:
         res = df[
