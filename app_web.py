@@ -57,24 +57,35 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Función inteligente para detectar cualquier archivo de escudo
-def obtener_ruta_escudo():
-    for f in os.listdir('.'):
-        if f.lower().startswith('escudo'):
-            return f
-    return None
-
-# Barra lateral con opciones e indicador de estado del escudo
+# Barra lateral con opciones de carga para el Excel y el Escudo
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
     
     st.divider()
-    escudo_detectado = obtener_ruta_escudo()
-    if escudo_detectado:
-        st.success(f"🛡️ Escudo activo: `{escudo_detectado}`")
+    st.subheader("🛡️ Escudo Institucional")
+    escudo_subido = st.file_uploader("Subir imagen del escudo", type=["png", "jpg", "jpeg"], key="uploader_escudo")
+    
+    # Si el usuario sube el escudo desde la web, lo guardamos localmente como 'escudo.png'
+    if escudo_subido is not None:
+        try:
+            with open("escudo.png", "wb") as f:
+                f.write(escudo_subido.getbuffer())
+            st.success("✅ ¡Escudo cargado con éxito!")
+        except Exception as e:
+            st.error(f"Error al guardar: {e}")
+
+    # Verificar estado actual del escudo
+    escudo_activo = False
+    for f in os.listdir('.'):
+        if f.lower().startswith('escudo'):
+            escudo_activo = True
+            break
+            
+    if escudo_activo:
+        st.info("🛡️ Estado: **Escudo disponible**")
     else:
-        st.warning("⚠️ No se detectó archivo 'escudo.png' en el repositorio.")
+        st.warning("⚠️ Sube una imagen de escudo arriba.")
 
 # Encabezado corporativo optimizado
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -103,6 +114,13 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
+# Función inteligente para detectar el archivo de escudo
+def obtener_ruta_escudo():
+    for f in os.listdir('.'):
+        if f.lower().startswith('escudo'):
+            return f
+    return None
+
 # Función para generar el PDF del Acta con procesamiento robusto de imagen en memoria
 def generar_acta_pdf(row, fecha_acta_str):
     buffer = io.BytesIO()
@@ -124,7 +142,7 @@ def generar_acta_pdf(row, fecha_acta_str):
     normal_small = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontSize=7, leading=8)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
-    # Procesamiento robusto del escudo: convierte cualquier formato a PNG limpio en memoria
+    # Inserción segura del escudo desde el archivo local procesado
     escudo_path = obtener_ruta_escudo()
     if escudo_path and os.path.exists(escudo_path):
         try:
