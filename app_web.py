@@ -13,20 +13,35 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 
-# Configuración de la página y diseño ultra compacto para móviles
+# Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# Estilos CSS para compactar filas, interlineados y alinear el buscador en una sola línea
+# Estilos CSS avanzados para móviles: separación del título y forzar columnas horizontales
 st.markdown("""
     <style>
         .block-container {
-            padding-top: 1rem;
+            padding-top: 2rem;
             padding-bottom: 1rem;
             padding-left: 0.8rem;
             padding-right: 0.8rem;
         }
+        /* Forzar que las columnas de búsqueda y botón queden lado a lado también en celulares */
+        div[data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: flex-end !important;
+            gap: 0.4rem !important;
+        }
+        div[data-testid="stHorizontalBlock"] > div {
+            width: auto !important;
+            flex: 1 1 auto !important;
+        }
+        div[data-testid="stHorizontalBlock"] > div:last-child {
+            flex: 0 0 50px !important;
+        }
         h2 {
-            margin-bottom: -0.5rem !important;
+            margin-top: 0.5rem !important;
+            margin-bottom: -0.3rem !important;
         }
         p {
             margin-bottom: 0.3rem !important;
@@ -34,17 +49,14 @@ st.markdown("""
         hr {
             margin: 0.5rem 0rem !important;
         }
-        /* Ajuste para alinear perfectamente el input y el botón de limpiar en una fila */
-        div[data-testid="stHorizontalBlock"] {
-            align-items: flex-end;
-            gap: 0.4rem;
-        }
     </style>
 """, unsafe_allow_html=True)
 
-# Encabezado corporativo optimizado
+# Encabezado corporativo con separación adecuada para dispositivos móviles
+st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
+st.divider()
 
 # Función para limpiar valores nulos o 'nan' y corregir DISENIO a DISEÑO
 def limpiar_val(val):
@@ -236,13 +248,14 @@ if df is not None:
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
 
-    st.divider()
+    # Fecha de actualización del archivo ubicada exactamente sobre la fila de búsqueda
+    st.markdown(f"<p style='color: #94A3B8; font-size: 0.8rem; margin-bottom: 2px;'>📅 Base actualizada: <b>{fecha_archivo_str}</b></p>", unsafe_allow_html=True)
 
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
 
-    # Fila única optimizada: Campo de texto con el ancho del texto + Botón de limpiar con icono de cesta
-    col_input, col_btn = st.columns([4.2, 0.8])
+    # Fila única forzada lado a lado en móvil y escritorio
+    col_input, col_btn = st.columns([5, 1])
     with col_input:
         codigo = st.text_input(
             "🔍 Buscar Código / Serie:",
