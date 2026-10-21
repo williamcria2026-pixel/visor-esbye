@@ -84,13 +84,16 @@ with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
     
-    # GUARDADO PERMANENTE DEL ARCHIVO Y SU NOMBRE REAL CON VALIDACIÓN
+    # GUARDADO PERMANENTE CON MENSAJE DE CONFIRMACIÓN VISUAL
     if archivo_subido is not None:
         try:
             with open("reporte_activo.xlsx", "wb") as f:
                 f.write(archivo_subido.getbuffer())
             with open("nombre_reporte.txt", "w", encoding="utf-8") as f:
                 f.write(archivo_subido.name)
+            st.session_state.nombre_reporte_activo = archivo_subido.name
+            st.success(f"¡Archivo '{archivo_subido.name}' subido y procesado con éxito!")
+            time.sleep(0.5)
             st.rerun()
         except Exception as e:
             st.error(f"Error al guardar archivo: {e}")
@@ -108,6 +111,7 @@ with st.sidebar:
                     except: pass
             with open(nombre_escudo_guardado, "wb") as f:
                 f.write(escudo_subido.getbuffer())
+            st.success("¡Escudo actualizado con éxito!")
         except Exception:
             pass
 
@@ -117,7 +121,7 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# RECUPERACIÓN SEGURA DEL ARCHIVO CON LIMPIEZA AUTOMÁTICA SI ESTÁ CORRUPTO
+# RECUPERACIÓN SEGURA DEL ARCHIVO Y NOMBRE DESDE EL DISCO
 df = None
 display_reporte = "Ninguno"
 
@@ -133,7 +137,6 @@ if os.path.exists("reporte_activo.xlsx"):
         else:
             display_reporte = "reporte_activo.xlsx"
     else:
-        # Si el archivo está dañado, lo borramos para evitar bloqueos permanentes
         try:
             os.remove("reporte_activo.xlsx")
             if os.path.exists("nombre_reporte.txt"):
