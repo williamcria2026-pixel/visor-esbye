@@ -83,6 +83,14 @@ with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
     
+    # SOLUCIÓN F5: Guardado físico permanente en disco del archivo subido
+    if archivo_subido is not None:
+        try:
+            with open("reporte_activo.xlsx", "wb") as f:
+                f.write(archivo_subido.getbuffer())
+        except Exception as e:
+            st.error(f"Error al guardar archivo: {e}")
+
     st.divider()
     st.subheader("🛡️ Escudo Institucional")
     escudo_subido = st.file_uploader("Subir imagen del escudo", type=["png", "jpg", "jpeg"], key="uploader_escudo")
@@ -105,23 +113,19 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Control de persistencia y carga del archivo subido o respaldo local
-archivos_excel = [f for f in os.listdir('.') if f.endswith('.xlsx') or f.endswith('.xls')]
+# CARGA DEL ARCHIVO DESDE EL DISCO (Persiste tras F5 o recargas)
+df = None
+display_reporte = "Ninguno"
 
-if archivo_subido is not None:
-    st.session_state.df_activo = cargar_excel(archivo_subido)
-    st.session_state.nombre_reporte_activo = archivo_subido.name
-elif 'df_activo' not in st.session_state or st.session_state.df_activo is None:
+if os.path.exists("reporte_activo.xlsx"):
+    df = cargar_excel("reporte_activo.xlsx")
+    display_reporte = "reporte_activo.xlsx"
+else:
+    archivos_excel = [f for f in os.listdir('.') if (f.endswith('.xlsx') or f.endswith('.xls')) and not f.startswith('escudo')]
     if archivos_excel:
-        archivo_local = archivos_excel[0]
-        st.session_state.df_activo = cargar_excel(archivo_local)
-        st.session_state.nombre_reporte_activo = archivo_local
-    else:
-        st.session_state.df_activo = None
-        st.session_state.nombre_reporte_activo = "Ninguno"
+        df = cargar_excel(archivos_excel[0])
+        display_reporte = archivos_excel[0]
 
-df = st.session_state.df_activo
-display_reporte = st.session_state.nombre_reporte_activo
 fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
 
 # Funciones de limpieza de datos
@@ -131,8 +135,6 @@ def limpiar_val_fecha(val):
     if isinstance(val, (pd.Timestamp, datetime)):
         return val.strftime("%d/%m/%Y")
     texto = str(val).strip()
-    if any(nombre_test in texto.upper() for nombre_test in ["CISNERSOS", "RAMOS", "WILLIAM", "EDUARDO"]) and not re.search(r'\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2}', texto):
-        return "-"
     if re.match(r'^\d{4}-\d{2}-\d{2}', texto):
         try:
             dt = datetime.strptime(texto.split()[0], "%Y-%m-%d")
@@ -322,7 +324,7 @@ if df is not None:
     col_map = {}
     col_fecha_ingreso_real = None
 
-    # MAPEO INTELIGENTE AMPLIADO POR COINCIDENCIA DE PALABRAS CLAVE EN ENCABEZADOS
+    # MAPEO FLEXIBLE POR ENCABEZADOS REALES
     for idx, col in enumerate(cols):
         c_low = str(col).lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
         
@@ -330,11 +332,10 @@ if df is not None:
             col_fecha_ingreso_real = col
 
         if 'codigo' in c_low and ('bien' in c_low or idx == 0):
-            if 'codigo' not in col_map:
-                col_map['codigo'] = col
+            col_map['codigo'] = col
         elif 'anterior' in c_low:
             col_map['anterior'] = col
-        elif any(k in c_low for k in ['bien', 'nombre', 'descripcion']) and 'codigo' not in c_low and 'anterior' not in c_low:
+        elif c_low in ['bien', 'nombre del bien', 'descripcion', 'denominacion'] or ('bien' in c_low and 'codigo' not in c_low):
             if 'nombre' not in col_map:
                 col_map['nombre'] = col
         elif 'serie' in c_low or 'identificacion' in c_low:
@@ -359,7 +360,7 @@ if df is not None:
             if 'valor' not in col_map:
                 col_map['valor'] = col
 
-    # Respaldo absoluto por índices físicos si algún encabezado varió por completo
+    # Respaldo por posiciones estándar si faltara algún campo crítico
     if 'codigo' not in col_map and len(cols) > 0: col_map['codigo'] = cols[0]
     if 'anterior' not in col_map and len(cols) > 1: col_map['anterior'] = cols[1]
     if 'nombre' not in col_map and len(cols) > 3: col_map['nombre'] = cols[3]
