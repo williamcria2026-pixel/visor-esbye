@@ -58,6 +58,26 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Función para cargar Excel
+def cargar_excel(origen):
+    for engine in ['calamine', 'openpyxl', None]:
+        try:
+            if engine:
+                return pd.read_excel(origen, engine=engine)
+            else:
+                return pd.read_excel(origen)
+        except Exception:
+            continue
+    st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
+    return None
+
+# Función inteligente para detectar el escudo activo
+def obtener_ruta_escudo():
+    for f in os.listdir('.'):
+        if f.lower().startswith('escudo') and f.lower().endswith(('png', 'jpg', 'jpeg')):
+            return f
+    return None
+
 # Barra lateral para opciones y archivos
 with st.sidebar:
     st.header("⚙️ Opciones")
@@ -85,32 +105,44 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Función robusta para limpiar y validar que sea una fecha real y no un nombre de persona
+# Control de persistencia en session_state para evitar que el archivo se pierda al interactuar
+archivos_excel = [f for f in os.listdir('.') if f.endswith('.xlsx') or f.endswith('.xls')]
+
+if archivo_subido is not None:
+    st.session_state.df_activo = cargar_excel(archivo_subido)
+    st.session_state.nombre_reporte_activo = archivo_subido.name
+elif 'df_activo' not in st.session_state:
+    if archivos_excel:
+        archivo_local = archivos_excel[0]
+        st.session_state.df_activo = cargar_excel(archivo_local)
+        st.session_state.nombre_reporte_activo = archivo_local
+    else:
+        st.session_state.df_activo = None
+        st.session_state.nombre_reporte_activo = "Ninguno"
+
+df = st.session_state.df_activo
+display_reporte = st.session_state.nombre_reporte_activo
+fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
+
+# Función robusta para limpiar y validar fecha de ingreso
 def limpiar_val_fecha(val):
     if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
         return "-"
     if isinstance(val, (pd.Timestamp, datetime)):
         return val.strftime("%d/%m/%Y")
-    
     texto = str(val).strip()
-    
-    # REGLA DE SEGURIDAD CRÍTICA: Si el texto contiene nombres en mayúsculas (como el custodio), rechazarlo inmediatamente
     if any(nombre_test in texto.upper() for nombre_test in ["CISNERSOS", "RAMOS", "WILLIAM", "EDUARDO"]) and not re.search(r'\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2}', texto):
         return "-"
-
     if re.match(r'^\d{4}-\d{2}-\d{2}', texto):
         try:
             dt = datetime.strptime(texto.split()[0], "%Y-%m-%d")
             return dt.strftime("%d/%m/%Y")
         except:
             pass
-            
     if re.match(r'^\d{2}/\d{2}/\d{4}', texto):
         return texto.split()[0]
-        
     return texto
 
-# Función general para limpiar otros textos
 def limpiar_val(val):
     if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
         return "-"
@@ -125,27 +157,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para cargar Excel
-def cargar_excel(origen):
-    for engine in ['calamine', 'openpyxl', None]:
-        try:
-            if engine:
-                return pd.read_excel(origen, engine=engine)
-            else:
-                return pd.read_excel(origen)
-        except Exception:
-            continue
-    st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
-    return None
-
-# Función inteligente para detectar el escudo activo
-def obtener_ruta_escudo():
-    for f in os.listdir('.'):
-        if f.lower().startswith('escudo') and f.lower().endswith(('png', 'jpg', 'jpeg')):
-            return f
-    return None
-
-# Función para generar el PDF con la Fecha de Ingreso del Bien validada
+# Función para generar PDF
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -244,7 +256,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
         Paragraph(limpiar_val(row.get(col_map.get('marca'))), normal_small),
         Paragraph(limpiar_val(row.get(col_map.get('bodega'))), normal_small),
         Paragraph("BLD", normal_small),
-        Paragraph(val_f_ingreso_pdf, normal_small), # Fecha de Ingreso validada
+        Paragraph(val_f_ingreso_pdf, normal_small),
         Paragraph(fecha_acta_str, normal_small),
         Paragraph("1", normal_small),
         Paragraph(val_contable_str, normal_small)
@@ -300,22 +312,6 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer.seek(0)
     return buffer
 
-archivos_excel = [f for f in os.listdir('.') if f.endswith('.xlsx') or f.endswith('.xls')]
-
-df = None
-nombre_excel_activo = "Ninguno"
-fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
-
-if archivo_subido is not None:
-    df = cargar_excel(archivo_subido)
-    nombre_excel_activo = archivo_subido.name
-elif archivos_excel:
-    archivo_local = archivos_excel[0]
-    df = cargar_excel(archivo_local)
-    nombre_excel_activo = archivo_local
-
-display_reporte = nombre_excel_activo
-
 ruta_escudo_activa = obtener_ruta_escudo()
 if ruta_escudo_activa:
     nombre_escudo_activo = ruta_escudo_activa.replace("escudo_", "")
@@ -332,7 +328,6 @@ if df is not None:
     for idx, col in enumerate(cols):
         c_low = str(col).lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
         
-        # Búsqueda estricta por nombre de encabezado o posición fija AL (índice 37)
         if c_low == 'fecha de ingreso' or idx == 37:
             col_fecha_ingreso_real = col
 
@@ -357,11 +352,9 @@ if df is not None:
         elif 'valor contable' in c_low or 'contable' in c_low:
             col_map['valor'] = col
 
-    # Respaldo por índice 37 si no se encontró
     if not col_fecha_ingreso_real and len(cols) > 37:
         col_fecha_ingreso_real = cols[37]
 
-    # Respaldos generales por posición
     if 'codigo' not in col_map and len(cols) > 0: col_map['codigo'] = cols[0]
     if 'anterior' not in col_map and len(cols) > 1: col_map['anterior'] = cols[1]
     if 'nombre' not in col_map and len(cols) > 3: col_map['nombre'] = cols[3]
@@ -434,7 +427,6 @@ if df is not None:
             val_bien = limpiar_val(row.get(col_map.get('nombre'), '-'))
             val_bodega = limpiar_val(row.get(col_map.get('bodega'), '-'))
             
-            # EXTRACCIÓN Y VALIDACIÓN SEGURA DE LA FECHA DE INGRESO
             val_fecha_ingreso = "-"
             if col_fecha_ingreso_real and col_fecha_ingreso_real in row:
                 val_fecha_ingreso = limpiar_val_fecha(row.get(col_fecha_ingreso_real))
@@ -462,7 +454,7 @@ if df is not None:
                 st.write(f"**Marca:** {limpiar_val(row.get(col_map.get('marca'), '-'))}")
                 st.write(f"**Modelo:** {limpiar_val(row.get(col_map.get('modelo'), '-'))}")
                 st.write(f"**Serie:** {limpiar_val(row.get(c_serie))}")
-                st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}") # <-- Fecha validada y correcta
+                st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}")
                 st.write(f"**Valor Contable:** {val_contable_fmt}")
                 
             with tab2:
