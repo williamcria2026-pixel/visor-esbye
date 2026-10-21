@@ -83,13 +83,14 @@ with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
     
-    # GUARDADO PERMANENTE Y RECARGA INSTANTÁNEA PARA PERSISTENCIA TRAS F5
+    # GUARDADO PERMANENTE DEL ARCHIVO Y SU NOMBRE REAL
     if archivo_subido is not None:
         try:
             with open("reporte_activo.xlsx", "wb") as f:
                 f.write(archivo_subido.getbuffer())
             with open("nombre_reporte.txt", "w", encoding="utf-8") as f:
                 f.write(archivo_subido.name)
+            st.session_state.nombre_reporte_activo = archivo_subido.name
             st.rerun()
         except Exception as e:
             st.error(f"Error al guardar archivo: {e}")
@@ -116,7 +117,7 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# RECUPERACIÓN DEL ARCHIVO Y SU NOMBRE ORIGINAL TRAS F5 O RECARGA
+# RECUPERACIÓN ABSOLUTA DEL ARCHIVO Y NOMBRE TRAS F5
 df = None
 display_reporte = "Ninguno"
 
@@ -334,7 +335,7 @@ if df is not None:
     col_map = {}
     col_fecha_ingreso_real = None
 
-    # MAPEO EXACTO BASADO EN LA NUMERACIÓN DE COLUMNAS (Iniciando desde 1):
+    # MAPEO EXACTO BASADO EN LA NUMERACIÓN DE COLUMNAS DE SU EXCEL (Iniciando desde 1):
     # Columna A (1) = Código del Bien -> Python índice 0
     # Columna B (2) = Código Anterior -> Python índice 1
     # Columna F (6) = Bien -> Python índice 5
