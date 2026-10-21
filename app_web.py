@@ -85,7 +85,7 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Función robusta para limpiar valores nulos o formatear fechas correctamente
+# Función robusta para limpiar valores nulos o formato de fecha
 def limpiar_val(val):
     if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
         return "-"
@@ -210,7 +210,6 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
     else:
         val_contable_str = "-"
 
-    # Obtención de la fecha de ingreso asegurada
     col_f_ing = col_map.get('fecha_ingreso')
     val_f_ingreso = limpiar_val(row.get(col_f_ing, '-')) if col_f_ing else "-"
 
@@ -223,8 +222,8 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
         Paragraph(limpiar_val(row.get(col_map.get('marca'))), normal_small),
         Paragraph(limpiar_val(row.get(col_map.get('bodega'))), normal_small),
         Paragraph("BLD", normal_small),
-        Paragraph(val_f_ingreso, normal_small), # <-- Fecha de ingreso correcta del bien
-        Paragraph(fecha_acta_str, normal_small), # <-- Fecha de asignación (actual)
+        Paragraph(val_f_ingreso, normal_small),
+        Paragraph(fecha_acta_str, normal_small),
         Paragraph("1", normal_small),
         Paragraph(val_contable_str, normal_small)
     ]
@@ -306,31 +305,32 @@ if df is not None:
     
     col_map = {}
     for col in df.columns:
-        col_clean = col.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
+        c_low = col.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
         
-        if ('codigo' in col_clean or 'cod' in col_clean) and 'ant' not in col_clean and 'codigo' not in col_map:
+        if ('codigo' in c_low or 'cod' in c_low) and 'ant' not in c_low and 'codigo' not in col_map:
             col_map['codigo'] = col
-        elif 'anterior' in col_clean and 'anterior' not in col_map:
+        elif 'anterior' in c_low and 'anterior' not in col_map:
             col_map['anterior'] = col
-        elif ('serie' in col_clean or 'identificacion' in col_clean) and 'serie' not in col_map:
+        elif ('serie' in c_low) and 'serie' not in col_map:
             col_map['serie'] = col
-        elif 'ingreso' in col_clean and 'fecha_ingreso' not in col_map:
+        elif ('ingreso' in c_low) and 'fecha_ingreso' not in col_map:
             col_map['fecha_ingreso'] = col
-        elif ('bien' in col_clean or 'nombre' in col_clean) and 'codigo' not in col_clean and 'nombre' not in col_map:
+        elif ('bien' in c_low or 'nombre' in c_low or 'denominacion' in c_low) and 'codigo' not in c_low and 'nombre' not in col_map:
             col_map['nombre'] = col
-        elif 'bodega' in col_clean and 'bodega' not in col_map:
+        elif 'bodega' in c_low and 'bodega' not in col_map:
             col_map['bodega'] = col
-        elif 'custodio' in col_clean and 'custodio' not in col_map:
+        elif ('custodio' in c_low or 'responsable' in c_low) and 'custodio' not in col_map:
             col_map['custodio'] = col
-        elif ('cedula' in col_clean or 'ruc' in col_clean) and 'cedula' not in col_map:
+        elif ('cedula' in c_low or 'ruc' in c_low) and 'cedula' not in col_map:
             col_map['cedula'] = col
-        elif ('valor' in col_clean or 'contable' in col_clean) and 'valor' not in col_map:
+        elif ('valor' in c_low or 'contable' in c_low or 'costo' in c_low) and 'valor' not in col_map:
             col_map['valor'] = col
-        elif ('marca' in col_clean or 'raza' in col_clean or 'otros' in col_clean) and 'marca' not in col_map:
+        elif ('marca' in c_low or 'raza' in c_low or 'otros' in c_low) and 'marca' not in col_map:
             col_map['marca'] = col
-        elif ('modelo' in col_clean or 'caracteristicas' in col_clean) and 'modelo' not in col_map:
+        elif ('modelo' in c_low or 'caracteristicas' in c_low) and 'modelo' not in col_map:
             col_map['modelo'] = col
 
+    # Respaldos y asignaciones seguras por índice si faltara alguna columna
     if 'codigo' not in col_map and len(df.columns) > 0:
         col_map['codigo'] = df.columns[0]
     if 'serie' not in col_map and len(df.columns) > 1:
@@ -339,6 +339,20 @@ if df is not None:
         col_map['anterior'] = col_map.get('codigo', df.columns[0])
     if 'nombre' not in col_map and len(df.columns) > 2:
         col_map['nombre'] = df.columns[2]
+    if 'modelo' not in col_map and len(df.columns) > 3:
+        col_map['modelo'] = df.columns[3]
+    if 'marca' not in col_map and len(df.columns) > 4:
+        col_map['marca'] = df.columns[4]
+    if 'bodega' not in col_map and len(df.columns) > 5:
+        col_map['bodega'] = df.columns[5]
+    if 'custodio' not in col_map and len(df.columns) > 6:
+        col_map['custodio'] = df.columns[6]
+    if 'cedula' not in col_map and len(df.columns) > 7:
+        col_map['cedula'] = df.columns[7]
+    if 'fecha_ingreso' not in col_map and len(df.columns) > 8:
+        col_map['fecha_ingreso'] = df.columns[8]
+    if 'valor' not in col_map and len(df.columns) > 10:
+        col_map['valor'] = df.columns[10]
 
     c_codigo = col_map.get('codigo', df.columns[0])
     c_serie = col_map.get('serie', df.columns[1] if len(df.columns) > 1 else df.columns[0])
