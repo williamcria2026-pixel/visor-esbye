@@ -58,7 +58,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Barra lateral limpia (únicamente para subir el nuevo reporte Excel)
+# Barra lateral limpia
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
@@ -69,11 +69,19 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Función para limpiar valores nulos o 'nan'
+# Función para limpiar valores nulos o formato de fecha
 def limpiar_val(val):
     if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
         return "-"
+    if isinstance(val, (pd.Timestamp, datetime)):
+        return val.strftime("%d/%m/%Y")
     texto = str(val).strip()
+    if re.match(r'^\d{4}-\d{2}-\d{2}', texto):
+        try:
+            dt = datetime.strptime(texto.split()[0], "%Y-%m-%d")
+            return dt.strftime("%d/%m/%Y")
+        except:
+            pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
 # Función para cargar Excel
@@ -89,21 +97,14 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
-# Función inteligente para detectar el escudo fijo en el servidor
+# Función inteligente para detectar el escudo fijo en el servidor/repositorio
 def obtener_ruta_escudo():
     for f in os.listdir('.'):
-        if f.lower().startswith('escudo'):
+        if f.lower().startswith('escudo') and f.lower().endswith(('png', 'jpg', 'jpeg')):
             return f
     return None
 
-# Función para extraer fecha del nombre del archivo si existe
-def extraer_fecha_nombre(nombre):
-    match = re.search(r'(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})', nombre)
-    if match:
-        return match.group(1)
-    return None
-
-# Función para generar el PDF respetando el formato original y el escudo fijo
+# Función para generar el PDF respetando el formato original y la fecha de ingreso
 def generar_acta_pdf(row, fecha_acta_str, col_map):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -274,8 +275,8 @@ elif archivos_excel:
     df = cargar_excel(archivo_local)
     nombre_excel_activo = archivo_local
 
-fecha_en_nombre = extraer_fecha_nombre(nombre_excel_activo)
-display_reporte = f"📅 {fecha_en_nombre}" if fecha_en_nombre else nombre_excel_activo
+# Mostramos exactamente el nombre completo del archivo tal como viene
+display_reporte = nombre_excel_activo
 
 if df is not None:
     df.columns = df.columns.astype(str).str.strip()
@@ -284,6 +285,7 @@ if df is not None:
     for col in df.columns:
         col_lower = col.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
         
+        # Mapeo robusto y exacto para la Fecha de Ingreso
         if 'ingreso' in col_lower and 'fecha_ingreso' not in col_map:
             col_map['fecha_ingreso'] = col
         elif 'codigo' in col_lower and 'ant' not in col_lower:
@@ -311,12 +313,9 @@ if df is not None:
     c_serie = col_map.get('serie', df.columns[1] if len(df.columns) > 1 else df.columns[0])
     c_anterior = col_map.get('anterior', df.columns[0])
 
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
-
-    # Indicador superior limpio mostrando únicamente el reporte activo
+    # Visualización limpia y completa del nombre del archivo en el sistema
     st.markdown(
-        f"<div style='background-color: #1E293B; padding: 6px 10px; border-radius: 6px; margin-bottom: 8px; text-align: center;'>"
+        f"<div style='background-color: #1E293B; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; text-align: center;'>"
         f"<span style='color: #CBD5E1; font-size: 0.85rem;'>📄 Reporte Activo: <b style='color: #93C5FD;'>{display_reporte}</b></span>"
         f"</div>", 
         unsafe_allow_html=True
@@ -349,16 +348,20 @@ if df is not None:
     termino_busqueda = st.session_state.busqueda_val.strip()
 
     if termino_busqueda:
+        s_codigo_str = df[c_codigo].astype(str).str.strip()
+        s_serie_str = df[c_serie].astype(str).str.strip()
+        s_anterior_str = df[c_anterior].astype(str).str.strip() if c_anterior in df.columns else pd.Series([""] * len(df))
+
         res = df[
-            (df[c_codigo].str.lower() == termino_busqueda.lower()) |
-            (df[c_serie].str.lower() == termino_busqueda.lower()) |
-            (df[c_anterior].str.lower() == termino_busqueda.lower())
+            (s_codigo_str.str.lower() == termino_busqueda.lower()) |
+            (s_serie_str.str.lower() == termino_busqueda.lower()) |
+            (s_anterior_str.str.lower() == termino_busqueda.lower())
         ]
         
         if res.empty:
             res = df[
-                (df[c_codigo].str.contains(termino_busqueda, case=False, na=False)) |
-                (df[c_serie].str.contains(termino_busqueda, case=False, na=False))
+                (s_codigo_str.str.contains(termino_busqueda, case=False, na=False)) |
+                (s_serie_str.str.contains(termino_busqueda, case=False, na=False))
             ]
             
         if not res.empty:
@@ -366,7 +369,9 @@ if df is not None:
             
             val_bien = limpiar_val(row.get(col_map.get('nombre'), '-'))
             val_bodega = limpiar_val(row.get(col_map.get('bodega'), '-'))
-            val_fecha_ingreso = limpiar_val(row.get(col_map.get('fecha_ingreso'), '-'))
+            
+            col_f_ing = col_map.get('fecha_ingreso')
+            val_fecha_ingreso = limpiar_val(row.get(col_f_ing, '-')) if col_f_ing else "-"
             
             st.success(f"📌 **BIEN:** {val_bien}")
             st.info(f"🏢 **BODEGA:** {val_bodega}")
