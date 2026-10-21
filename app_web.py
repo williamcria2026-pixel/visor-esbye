@@ -58,10 +58,26 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Barra lateral limpia
+# Barra lateral para opciones y archivos
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
+    
+    st.divider()
+    st.subheader("🛡️ Escudo Institucional")
+    escudo_subido = st.file_uploader("Subir imagen del escudo", type=["png", "jpg", "jpeg"], key="uploader_escudo")
+    
+    if escudo_subido is not None:
+        try:
+            nombre_escudo_guardado = f"escudo_{escudo_subido.name}"
+            for f in os.listdir('.'):
+                if f.lower().startswith('escudo'):
+                    try: os.remove(f)
+                    except: pass
+            with open(nombre_escudo_guardado, "wb") as f:
+                f.write(escudo_subido.getbuffer())
+        except Exception:
+            pass
 
 # Encabezado corporativo
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -97,7 +113,7 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
-# Función inteligente para detectar el escudo fijo en el servidor/repositorio
+# Función inteligente para detectar el escudo activo
 def obtener_ruta_escudo():
     for f in os.listdir('.'):
         if f.lower().startswith('escudo') and f.lower().endswith(('png', 'jpg', 'jpeg')):
@@ -275,8 +291,13 @@ elif archivos_excel:
     df = cargar_excel(archivo_local)
     nombre_excel_activo = archivo_local
 
-# Mostramos exactamente el nombre completo del archivo tal como viene
 display_reporte = nombre_excel_activo
+
+ruta_escudo_activa = obtener_ruta_escudo()
+if ruta_escudo_activa:
+    nombre_escudo_activo = ruta_escudo_activa.replace("escudo_", "")
+else:
+    nombre_escudo_activo = "Sin escudo"
 
 if df is not None:
     df.columns = df.columns.astype(str).str.strip()
@@ -285,38 +306,47 @@ if df is not None:
     for col in df.columns:
         col_lower = col.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
         
-        # Mapeo robusto y exacto para la Fecha de Ingreso
-        if 'ingreso' in col_lower and 'fecha_ingreso' not in col_map:
-            col_map['fecha_ingreso'] = col
-        elif 'codigo' in col_lower and 'ant' not in col_lower:
+        # Mapeo preciso y ordenado para evitar colisiones
+        if 'codigo' in col_lower and 'ant' not in col_lower and 'codigo' not in col_map:
             col_map['codigo'] = col
-        elif 'serie' in col_lower or 'identificacion' in col_lower:
-            col_map['serie'] = col
-        elif 'anterior' in col_lower:
+        elif 'anterior' in col_lower and 'anterior' not in col_map:
             col_map['anterior'] = col
-        elif 'bien' in col_lower and 'codigo' not in col_lower:
+        elif 'serie' in col_lower or 'identificacion' in col_lower and 'serie' not in col_map:
+            col_map['serie'] = col
+        elif 'fecha' in col_lower and 'ingreso' in col_lower and 'fecha_ingreso' not in col_map:
+            col_map['fecha_ingreso'] = col
+        elif 'bien' in col_lower and 'codigo' not in col_lower and 'nombre' not in col_map:
             col_map['nombre'] = col
-        elif 'bodega' in col_lower:
+        elif 'bodega' in col_lower and 'bodega' not in col_map:
             col_map['bodega'] = col
-        elif 'custodio' in col_lower:
+        elif 'custodio' in col_lower and 'custodio' not in col_map:
             col_map['custodio'] = col
-        elif 'cedula' in col_lower or 'ruc' in col_lower:
+        elif ('cedula' in col_lower or 'ruc' in col_lower) and 'cedula' not in col_map:
             col_map['cedula'] = col
-        elif 'valor' in col_lower or 'contable' in col_lower:
+        elif ('valor' in col_lower or 'contable' in col_lower) and 'valor' not in col_map:
             col_map['valor'] = col
-        elif 'marca' in col_lower or 'raza' in col_lower or 'otros' in col_lower:
+        elif ('marca' in col_lower or 'raza' in col_lower or 'otros' in col_lower) and 'marca' not in col_map:
             col_map['marca'] = col
-        elif 'modelo' in col_lower or 'caracteristicas' in col_lower:
+        elif ('modelo' in col_lower or 'caracteristicas' in col_lower) and 'modelo' not in col_map:
             col_map['modelo'] = col
+
+    # Respaldo por seguridad si alguna columna no se mapeó automáticamente
+    if 'codigo' not in col_map and len(df.columns) > 0:
+        col_map['codigo'] = df.columns[0]
+    if 'serie' not in col_map and len(df.columns) > 1:
+        col_map['serie'] = df.columns[1]
+    if 'anterior' not in col_map:
+        col_map['anterior'] = col_map.get('codigo', df.columns[0])
 
     c_codigo = col_map.get('codigo', df.columns[0])
     c_serie = col_map.get('serie', df.columns[1] if len(df.columns) > 1 else df.columns[0])
-    c_anterior = col_map.get('anterior', df.columns[0])
+    c_anterior = col_map.get('anterior', c_codigo)
 
-    # Visualización limpia y completa del nombre del archivo en el sistema
+    # Indicador superior mostrando tanto el reporte activo como el escudo activo
     st.markdown(
-        f"<div style='background-color: #1E293B; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; text-align: center;'>"
-        f"<span style='color: #CBD5E1; font-size: 0.85rem;'>📄 Reporte Activo: <b style='color: #93C5FD;'>{display_reporte}</b></span>"
+        f"<div style='background-color: #1E293B; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px;'>"
+        f"<span style='color: #CBD5E1; font-size: 0.82rem;'>📄 Reporte: <b style='color: #93C5FD;'>{display_reporte}</b></span><br>"
+        f"<span style='color: #CBD5E1; font-size: 0.82rem;'>🛡️ Escudo: <b style='color: #93C5FD;'>{nombre_escudo_activo}</b></span>"
         f"</div>", 
         unsafe_allow_html=True
     )
