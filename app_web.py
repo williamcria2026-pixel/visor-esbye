@@ -307,55 +307,46 @@ if df is not None:
     for col in df.columns:
         c_low = col.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
         
-        if ('codigo' in c_low or 'cod' in c_low) and 'ant' not in c_low and 'codigo' not in col_map:
+        # Mapeo exacto basado en la cabecera real de su reporte Excel
+        if 'codigo del bien' in c_low or c_low == 'codigo del bien':
             col_map['codigo'] = col
-        elif 'anterior' in c_low and 'anterior' not in col_map:
+        elif 'codigo anterior' in c_low:
             col_map['anterior'] = col
-        elif ('serie' in c_low) and 'serie' not in col_map:
-            col_map['serie'] = col
-        elif ('ingreso' in c_low) and 'fecha_ingreso' not in col_map:
-            col_map['fecha_ingreso'] = col
-        elif ('bien' in c_low or 'nombre' in c_low or 'denominacion' in c_low) and 'codigo' not in c_low and 'nombre' not in col_map:
+        elif c_low == 'bien' or (('bien' in c_low) and 'codigo' not in c_low and 'nombre' not in col_map):
             col_map['nombre'] = col
-        elif 'bodega' in c_low and 'bodega' not in col_map:
-            col_map['bodega'] = col
-        elif ('custodio' in c_low or 'responsable' in c_low) and 'custodio' not in col_map:
-            col_map['custodio'] = col
-        elif ('cedula' in c_low or 'ruc' in c_low) and 'cedula' not in col_map:
-            col_map['cedula'] = col
-        elif ('valor' in c_low or 'contable' in c_low or 'costo' in c_low) and 'valor' not in col_map:
-            col_map['valor'] = col
-        elif ('marca' in c_low or 'raza' in c_low or 'otros' in c_low) and 'marca' not in col_map:
-            col_map['marca'] = col
-        elif ('modelo' in c_low or 'caracteristicas' in c_low) and 'modelo' not in col_map:
+        elif 'serie' in c_low or 'identificacion' in c_low:
+            col_map['serie'] = col
+        elif 'caracteristicas' in c_low:
             col_map['modelo'] = col
+        elif 'marca' in c_low or 'otros' in c_low:
+            col_map['marca'] = col
+        elif c_low == 'bodega' or 'bodega' in c_low:
+            col_map['bodega'] = col
+        elif 'cedula' in c_low or 'ruc' in c_low:
+            col_map['cedula'] = col
+        elif 'custodio' in c_low:
+            col_map['custodio'] = col
+        elif 'fecha de ingreso' in c_low or 'fecha ingreso' in c_low:
+            col_map['fecha_ingreso'] = col
+        elif 'valor contable' in c_low or 'contable' in c_low:
+            col_map['valor'] = col
 
-    # Respaldos y asignaciones seguras por índice si faltara alguna columna
-    if 'codigo' not in col_map and len(df.columns) > 0:
-        col_map['codigo'] = df.columns[0]
-    if 'serie' not in col_map and len(df.columns) > 1:
-        col_map['serie'] = df.columns[1]
-    if 'anterior' not in col_map:
-        col_map['anterior'] = col_map.get('codigo', df.columns[0])
-    if 'nombre' not in col_map and len(df.columns) > 2:
-        col_map['nombre'] = df.columns[2]
-    if 'modelo' not in col_map and len(df.columns) > 3:
-        col_map['modelo'] = df.columns[3]
-    if 'marca' not in col_map and len(df.columns) > 4:
-        col_map['marca'] = df.columns[4]
-    if 'bodega' not in col_map and len(df.columns) > 5:
-        col_map['bodega'] = df.columns[5]
-    if 'custodio' not in col_map and len(df.columns) > 6:
-        col_map['custodio'] = df.columns[6]
-    if 'cedula' not in col_map and len(df.columns) > 7:
-        col_map['cedula'] = df.columns[7]
-    if 'fecha_ingreso' not in col_map and len(df.columns) > 8:
-        col_map['fecha_ingreso'] = df.columns[8]
-    if 'valor' not in col_map and len(df.columns) > 10:
-        col_map['valor'] = df.columns[10]
+    # Respaldos seguros basados exactamente en las posiciones reales del reporte
+    cols = list(df.columns)
+    if 'codigo' not in col_map and len(cols) > 0: col_map['codigo'] = cols[0]
+    if 'anterior' not in col_map and len(cols) > 1: col_map['anterior'] = cols[1]
+    if 'nombre' not in col_map and len(cols) > 3: col_map['nombre'] = cols[3]
+    if 'serie' not in col_map and len(cols) > 4: col_map['serie'] = cols[4]
+    if 'modelo' not in col_map and len(cols) > 5: col_map['modelo'] = cols[5]
+    if 'marca' not in col_map and len(cols) > 6: col_map['marca'] = cols[6]
+    if 'bodega' not in col_map and len(cols) > 7: col_map['bodega'] = cols[7]
+    if 'cedula' not in col_map and len(cols) > 8: col_map['cedula'] = cols[8]
+    if 'custodio' not in col_map and len(cols) > 9: col_map['custodio'] = cols[9]
+    if 'fecha_ingreso' not in col_map and len(cols) > 10: col_map['fecha_ingreso'] = cols[10]
+    if 'valor' not in col_map and len(cols) > 11: col_map['valor'] = cols[11]
 
-    c_codigo = col_map.get('codigo', df.columns[0])
-    c_serie = col_map.get('serie', df.columns[1] if len(df.columns) > 1 else df.columns[0])
+    c_codigo = col_map.get('codigo', cols[0])
+    c_serie = col_map.get('serie', cols[4] if len(cols) > 4 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
     st.markdown(
@@ -439,7 +430,7 @@ if df is not None:
                 st.write(f"**Marca:** {limpiar_val(row.get(col_map.get('marca'), '-'))}")
                 st.write(f"**Modelo:** {limpiar_val(row.get(col_map.get('modelo'), '-'))}")
                 st.write(f"**Serie:** {limpiar_val(row.get(c_serie))}")
-                st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}")
+                st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}") # <-- Campo solicitado antes del valor contable
                 st.write(f"**Valor Contable:** {val_contable_fmt}")
                 
             with tab2:
