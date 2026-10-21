@@ -120,7 +120,7 @@ def obtener_ruta_escudo():
             return f
     return None
 
-# Función para generar el PDF respetando el formato original y la columna AL (índice 37)
+# Función para generar el PDF respetando el formato original y la fecha de ingreso de la fila encontrada
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -219,7 +219,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
         Paragraph(limpiar_val(row.get(col_map.get('marca'))), normal_small),
         Paragraph(limpiar_val(row.get(col_map.get('bodega'))), normal_small),
         Paragraph("BLD", normal_small),
-        Paragraph(val_f_ingreso_pdf, normal_small), # Fecha de Ingreso exacta (Columna AL)
+        Paragraph(val_f_ingreso_pdf, normal_small), # Fecha de Ingreso de la fila encontrada
         Paragraph(fecha_acta_str, normal_small),
         Paragraph("1", normal_small),
         Paragraph(val_contable_str, normal_small)
@@ -326,7 +326,7 @@ if df is not None:
         elif 'valor contable' in c_low or 'contable' in c_low:
             col_map['valor'] = col
 
-    # Respaldos seguros por posición
+    # Respaldos generales por posición
     if 'codigo' not in col_map and len(cols) > 0: col_map['codigo'] = cols[0]
     if 'anterior' not in col_map and len(cols) > 1: col_map['anterior'] = cols[1]
     if 'nombre' not in col_map and len(cols) > 3: col_map['nombre'] = cols[3]
@@ -394,21 +394,25 @@ if df is not None:
             ]
             
         if not res.empty:
+            # Tomamos la fila exacta encontrada mediante la búsqueda por código o serie
             row = res.iloc[0]
             
             val_bien = limpiar_val(row.get(col_map.get('nombre'), '-'))
             val_bodega = limpiar_val(row.get(col_map.get('bodega'), '-'))
             
-            # EXTRACCIÓN DIRECTA Y ABSOLUTA DE LA COLUMNA AL (Índice 37)
+            # EXTRACCIÓN DIRECTA DE LA FECHA DE INGRESO PARA ESTA FILA ENCONTRADA:
+            # 1. Buscando primero por nombre de columna que contenga "fecha" e "ingreso"
+            # 2. Respaldo directo en la columna AL (índice 37) de la fila específica
             val_fecha_ingreso = "-"
-            if len(row) > 37:
-                val_fecha_ingreso = limpiar_val(row.iloc[37])
-            else:
-                # Búsqueda alternativa por nombre si las columnas son menores a 38
-                for c_name in df.columns:
-                    if 'ingreso' in str(c_name).lower():
-                        val_fecha_ingreso = limpiar_val(row.get(c_name, '-'))
+            for col_name in df.columns:
+                c_clean = str(col_name).strip().lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+                if 'fecha' in c_clean and 'ingreso' in c_clean:
+                    val_fecha_ingreso = limpiar_val(row.get(col_name, '-'))
+                    if val_fecha_ingreso != "-":
                         break
+            
+            if val_fecha_ingreso == "-" and len(row) > 37:
+                val_fecha_ingreso = limpiar_val(row.iloc[37])
             
             st.success(f"📌 **BIEN:** {val_bien}")
             st.info(f"🏢 **BODEGA:** {val_bodega}")
@@ -431,7 +435,7 @@ if df is not None:
                 st.write(f"**Marca:** {limpiar_val(row.get(col_map.get('marca'), '-'))}")
                 st.write(f"**Modelo:** {limpiar_val(row.get(col_map.get('modelo'), '-'))}")
                 st.write(f"**Serie:** {limpiar_val(row.get(c_serie))}")
-                st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}") # <-- Columna AL fija
+                st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}") # <-- Fecha exacta de la fila encontrada
                 st.write(f"**Valor Contable:** {val_contable_fmt}")
                 
             with tab2:
@@ -453,6 +457,6 @@ if df is not None:
                 use_container_width=True
             )
         else:
-            st.error(f"❌ No se encontró ningún bien con el código: {termino_busqueda}")
+            st.error(f"❌ No se encontró ningún bien con el código o serie: {termino_busqueda}")
 else:
     st.warning("⚠️ No se encontró ningún archivo Excel válido o no se pudo cargar.")
