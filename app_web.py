@@ -63,12 +63,13 @@ def cargar_excel(origen):
     for engine in ['calamine', 'openpyxl', None]:
         try:
             if engine:
-                return pd.read_excel(origen, engine=engine)
+                df_temp = pd.read_excel(origen, engine=engine)
             else:
-                return pd.read_excel(origen)
+                df_temp = pd.read_excel(origen)
+            if df_temp is not None and not df_temp.empty:
+                return df_temp
         except Exception:
             continue
-    st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
 # Función inteligente para detectar el escudo activo
@@ -83,14 +84,13 @@ with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
     
-    # GUARDADO PERMANENTE DEL ARCHIVO Y SU NOMBRE REAL
+    # GUARDADO PERMANENTE DEL ARCHIVO Y SU NOMBRE REAL CON VALIDACIÓN
     if archivo_subido is not None:
         try:
             with open("reporte_activo.xlsx", "wb") as f:
                 f.write(archivo_subido.getbuffer())
             with open("nombre_reporte.txt", "w", encoding="utf-8") as f:
                 f.write(archivo_subido.name)
-            st.session_state.nombre_reporte_activo = archivo_subido.name
             st.rerun()
         except Exception as e:
             st.error(f"Error al guardar archivo: {e}")
@@ -117,25 +117,35 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# RECUPERACIÓN ABSOLUTA DEL ARCHIVO Y NOMBRE TRAS F5
+# RECUPERACIÓN SEGURA DEL ARCHIVO CON LIMPIEZA AUTOMÁTICA SI ESTÁ CORRUPTO
 df = None
 display_reporte = "Ninguno"
 
 if os.path.exists("reporte_activo.xlsx"):
     df = cargar_excel("reporte_activo.xlsx")
-    if os.path.exists("nombre_reporte.txt"):
-        try:
-            with open("nombre_reporte.txt", "r", encoding="utf-8") as f:
-                display_reporte = f.read().strip()
-        except:
+    if df is not None:
+        if os.path.exists("nombre_reporte.txt"):
+            try:
+                with open("nombre_reporte.txt", "r", encoding="utf-8") as f:
+                    display_reporte = f.read().strip()
+            except:
+                display_reporte = "reporte_activo.xlsx"
+        else:
             display_reporte = "reporte_activo.xlsx"
     else:
-        display_reporte = "reporte_activo.xlsx"
+        # Si el archivo está dañado, lo borramos para evitar bloqueos permanentes
+        try:
+            os.remove("reporte_activo.xlsx")
+            if os.path.exists("nombre_reporte.txt"):
+                os.remove("nombre_reporte.txt")
+        except:
+            pass
 else:
     archivos_excel = [f for f in os.listdir('.') if (f.endswith('.xlsx') or f.endswith('.xls')) and not f.startswith('escudo') and f != 'nombre_reporte.txt']
     if archivos_excel:
         df = cargar_excel(archivos_excel[0])
-        display_reporte = archivos_excel[0]
+        if df is not None:
+            display_reporte = archivos_excel[0]
 
 fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
 
@@ -499,4 +509,4 @@ if df is not None:
         else:
             st.error(f"❌ No se encontró ningún bien con el código: {termino_busqueda}")
 else:
-    st.warning("⚠️ No se encontró ningún archivo Excel válido o no se pudo cargar.")
+    st.warning("⚠️ No se encontró ningún archivo Excel válido o no se pudo cargar. Por favor, suba su reporte en formato .xlsx mediante el menú de la izquierda.")
