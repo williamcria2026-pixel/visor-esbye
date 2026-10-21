@@ -105,13 +105,13 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Persistencia absoluta en session_state para que el archivo subido no se pierda al interactuar
+# Control de persistencia y carga del archivo subido o respaldo local
 archivos_excel = [f for f in os.listdir('.') if f.endswith('.xlsx') or f.endswith('.xls')]
 
 if archivo_subido is not None:
     st.session_state.df_activo = cargar_excel(archivo_subido)
     st.session_state.nombre_reporte_activo = archivo_subido.name
-elif 'df_activo' not in st.session_state:
+elif 'df_activo' not in st.session_state or st.session_state.df_activo is None:
     if archivos_excel:
         archivo_local = archivos_excel[0]
         st.session_state.df_activo = cargar_excel(archivo_local)
@@ -322,18 +322,19 @@ if df is not None:
     col_map = {}
     col_fecha_ingreso_real = None
 
-    # MAPEO ESTRICTO INTELIGENTE POR NOMBRE DE ENCABEZADO (SIN USAR POSICIONES FIJAS)
+    # MAPEO INTELIGENTE AMPLIADO POR COINCIDENCIA DE PALABRAS CLAVE EN ENCABEZADOS
     for idx, col in enumerate(cols):
         c_low = str(col).lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
         
-        if c_low == 'fecha de ingreso' or idx == 37:
+        if 'fecha de ingreso' in c_low or idx == 37:
             col_fecha_ingreso_real = col
 
-        if 'codigo del bien' in c_low or c_low == 'codigo bien' or c_low == 'cod_bien':
-            col_map['codigo'] = col
-        elif 'codigo anterior' in c_low:
+        if 'codigo' in c_low and ('bien' in c_low or idx == 0):
+            if 'codigo' not in col_map:
+                col_map['codigo'] = col
+        elif 'anterior' in c_low:
             col_map['anterior'] = col
-        elif c_low == 'bien' or 'nombre del bien' in c_low or 'descripcion' in c_low:
+        elif any(k in c_low for k in ['bien', 'nombre', 'descripcion']) and 'codigo' not in c_low and 'anterior' not in c_low:
             if 'nombre' not in col_map:
                 col_map['nombre'] = col
         elif 'serie' in c_low or 'identificacion' in c_low:
@@ -346,17 +347,32 @@ if df is not None:
             if 'marca' not in col_map:
                 col_map['marca'] = col
         elif 'bodega' in c_low:
-            col_map['bodega'] = col
+            if 'bodega' not in col_map:
+                col_map['bodega'] = col
         elif 'cedula' in c_low or 'ruc' in c_low:
-            col_map['cedula'] = col
+            if 'cedula' not in col_map:
+                col_map['cedula'] = col
         elif 'custodio' in c_low:
-            col_map['custodio'] = col
-        elif 'valor contable' in c_low or c_low == 'valor' or 'contable' in c_low:
-            col_map['valor'] = col
+            if 'custodio' not in col_map:
+                col_map['custodio'] = col
+        elif 'valor' in c_low or 'contable' in c_low:
+            if 'valor' not in col_map:
+                col_map['valor'] = col
 
-    # Asignaciones de seguridad basadas estrictamente en nombres si faltara alguno crítico
+    # Respaldo absoluto por índices físicos si algún encabezado varió por completo
+    if 'codigo' not in col_map and len(cols) > 0: col_map['codigo'] = cols[0]
+    if 'anterior' not in col_map and len(cols) > 1: col_map['anterior'] = cols[1]
+    if 'nombre' not in col_map and len(cols) > 3: col_map['nombre'] = cols[3]
+    if 'serie' not in col_map and len(cols) > 4: col_map['serie'] = cols[4]
+    if 'modelo' not in col_map and len(cols) > 5: col_map['modelo'] = cols[5]
+    if 'marca' not in col_map and len(cols) > 6: col_map['marca'] = cols[6]
+    if 'bodega' not in col_map and len(cols) > 7: col_map['bodega'] = cols[7]
+    if 'cedula' not in col_map and len(cols) > 8: col_map['cedula'] = cols[8]
+    if 'custodio' not in col_map and len(cols) > 9: col_map['custodio'] = cols[9]
+    if 'valor' not in col_map and len(cols) > 11: col_map['valor'] = cols[11]
+
     c_codigo = col_map.get('codigo', cols[0])
-    c_serie = col_map.get('serie', c_codigo)
+    c_serie = col_map.get('serie', cols[4] if len(cols) > 4 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
     st.markdown(
