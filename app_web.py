@@ -85,7 +85,7 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Función para limpiar valores nulos o formato de fecha
+# Función robusta para limpiar valores nulos o formatear fechas correctamente
 def limpiar_val(val):
     if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
         return "-"
@@ -203,14 +203,16 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
     val_contable_clean = limpiar_val(val_contable)
     if val_contable_clean not in ["-", "."]:
         try:
-            val_contable_num = float(val_contable_clean)
+            val_contable_num = float(val_contable_clean.replace('$', '').replace(',', ''))
             val_contable_str = f"${val_contable_num:,.2f}"
         except:
             val_contable_str = val_contable_clean
     else:
         val_contable_str = "-"
 
-    val_f_ingreso = limpiar_val(row.get(col_map.get('fecha_ingreso'), '-'))
+    # Obtención de la fecha de ingreso asegurada
+    col_f_ing = col_map.get('fecha_ingreso')
+    val_f_ingreso = limpiar_val(row.get(col_f_ing, '-')) if col_f_ing else "-"
 
     data_row = [
         Paragraph(limpiar_val(row.get(col_map.get('codigo'))), normal_small),
@@ -221,8 +223,8 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
         Paragraph(limpiar_val(row.get(col_map.get('marca'))), normal_small),
         Paragraph(limpiar_val(row.get(col_map.get('bodega'))), normal_small),
         Paragraph("BLD", normal_small),
-        Paragraph(val_f_ingreso, normal_small),
-        Paragraph(fecha_acta_str, normal_small),
+        Paragraph(val_f_ingreso, normal_small), # <-- Fecha de ingreso correcta del bien
+        Paragraph(fecha_acta_str, normal_small), # <-- Fecha de asignación (actual)
         Paragraph("1", normal_small),
         Paragraph(val_contable_str, normal_small)
     ]
@@ -304,45 +306,44 @@ if df is not None:
     
     col_map = {}
     for col in df.columns:
-        col_lower = col.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+        col_clean = col.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
         
-        # Mapeo preciso y ordenado para evitar colisiones
-        if 'codigo' in col_lower and 'ant' not in col_lower and 'codigo' not in col_map:
+        if ('codigo' in col_clean or 'cod' in col_clean) and 'ant' not in col_clean and 'codigo' not in col_map:
             col_map['codigo'] = col
-        elif 'anterior' in col_lower and 'anterior' not in col_map:
+        elif 'anterior' in col_clean and 'anterior' not in col_map:
             col_map['anterior'] = col
-        elif 'serie' in col_lower or 'identificacion' in col_lower and 'serie' not in col_map:
+        elif ('serie' in col_clean or 'identificacion' in col_clean) and 'serie' not in col_map:
             col_map['serie'] = col
-        elif 'fecha' in col_lower and 'ingreso' in col_lower and 'fecha_ingreso' not in col_map:
+        elif 'ingreso' in col_clean and 'fecha_ingreso' not in col_map:
             col_map['fecha_ingreso'] = col
-        elif 'bien' in col_lower and 'codigo' not in col_lower and 'nombre' not in col_map:
+        elif ('bien' in col_clean or 'nombre' in col_clean) and 'codigo' not in col_clean and 'nombre' not in col_map:
             col_map['nombre'] = col
-        elif 'bodega' in col_lower and 'bodega' not in col_map:
+        elif 'bodega' in col_clean and 'bodega' not in col_map:
             col_map['bodega'] = col
-        elif 'custodio' in col_lower and 'custodio' not in col_map:
+        elif 'custodio' in col_clean and 'custodio' not in col_map:
             col_map['custodio'] = col
-        elif ('cedula' in col_lower or 'ruc' in col_lower) and 'cedula' not in col_map:
+        elif ('cedula' in col_clean or 'ruc' in col_clean) and 'cedula' not in col_map:
             col_map['cedula'] = col
-        elif ('valor' in col_lower or 'contable' in col_lower) and 'valor' not in col_map:
+        elif ('valor' in col_clean or 'contable' in col_clean) and 'valor' not in col_map:
             col_map['valor'] = col
-        elif ('marca' in col_lower or 'raza' in col_lower or 'otros' in col_lower) and 'marca' not in col_map:
+        elif ('marca' in col_clean or 'raza' in col_clean or 'otros' in col_clean) and 'marca' not in col_map:
             col_map['marca'] = col
-        elif ('modelo' in col_lower or 'caracteristicas' in col_lower) and 'modelo' not in col_map:
+        elif ('modelo' in col_clean or 'caracteristicas' in col_clean) and 'modelo' not in col_map:
             col_map['modelo'] = col
 
-    # Respaldo por seguridad si alguna columna no se mapeó automáticamente
     if 'codigo' not in col_map and len(df.columns) > 0:
         col_map['codigo'] = df.columns[0]
     if 'serie' not in col_map and len(df.columns) > 1:
         col_map['serie'] = df.columns[1]
     if 'anterior' not in col_map:
         col_map['anterior'] = col_map.get('codigo', df.columns[0])
+    if 'nombre' not in col_map and len(df.columns) > 2:
+        col_map['nombre'] = df.columns[2]
 
     c_codigo = col_map.get('codigo', df.columns[0])
     c_serie = col_map.get('serie', df.columns[1] if len(df.columns) > 1 else df.columns[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
-    # Indicador superior mostrando tanto el reporte activo como el escudo activo
     st.markdown(
         f"<div style='background-color: #1E293B; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px;'>"
         f"<span style='color: #CBD5E1; font-size: 0.82rem;'>📄 Reporte: <b style='color: #93C5FD;'>{display_reporte}</b></span><br>"
@@ -410,7 +411,7 @@ if df is not None:
             val_contable_clean = limpiar_val(val_contable)
             if val_contable_clean not in ["-", "."]:
                 try:
-                    val_contable_fmt = f"${float(val_contable_clean):,.2f}"
+                    val_contable_fmt = f"${float(val_contable_clean.replace('$', '').replace(',', '')):,.2f}"
                 except:
                     val_contable_fmt = val_contable_clean
             else:
