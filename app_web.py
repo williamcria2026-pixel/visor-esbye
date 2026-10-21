@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import time
 from datetime import datetime
+import re
 import io
 from PIL import Image as PILImage
 
@@ -104,14 +105,21 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
-# Función inteligente para detectar el nombre del archivo de escudo activo
+# Función inteligente para detectar el archivo de escudo activo
 def obtener_ruta_escudo():
     for f in os.listdir('.'):
         if f.lower().startswith('escudo'):
             return f
     return None
 
-# Función para generar el PDF del Acta con la Fecha de Ingreso del Bien antes del Valor Contable
+# Función para extraer fecha del nombre del archivo si existe
+def extraer_fecha_nombre(nombre):
+    match = re.search(r'(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})', nombre)
+    if match:
+        return match.group(1)
+    return None
+
+# Función para generar el PDF respetando estrictamente el formato original de las columnas
 def generar_acta_pdf(row, fecha_acta_str, col_map):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -174,20 +182,20 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
     story.append(Paragraph(f"<b>FECHA:</b> {fecha_acta_str}", normal_small))
     story.append(Spacer(1, 4))
 
-    col_widths = [55, 55, 115, 60, 50, 70, 85, 40, 45, 45, 30, 55, 55]
+    # Formato original exacto de 12 columnas
+    col_widths = [55, 55, 120, 65, 55, 75, 90, 40, 50, 50, 30, 55]
     headers = [
         Paragraph("Código Bien", header_table),
         Paragraph("Código Anterior", header_table),
         Paragraph("Nombre Bien", header_table),
         Paragraph("Serie", header_table),
         Paragraph("Modelo", header_table),
-        Paragraph("Marca/Otros", header_table),
+        Paragraph("Marca/Raza/Otros", header_table),
         Paragraph("Bodega", header_table),
         Paragraph("Tipo Reg.", header_table),
-        Paragraph("F. Ingreso", header_table),
-        Paragraph("F. Asignación", header_table),
+        Paragraph("Fecha Ingreso", header_table),
+        Paragraph("Fecha Asignación", header_table),
         Paragraph("Cant.", header_table),
-        Paragraph("Fecha Ingreso del Bien", header_table),
         Paragraph("Valor Contable", header_table)
     ]
 
@@ -213,16 +221,15 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
         Paragraph(limpiar_val(row.get(col_map.get('marca'))), normal_small),
         Paragraph(limpiar_val(row.get(col_map.get('bodega'))), normal_small),
         Paragraph("BLD", normal_small),
-        Paragraph("-", normal_small),
+        Paragraph(val_f_ingreso, normal_small), # <-- Fecha de ingreso del archivo en su lugar original
         Paragraph(fecha_acta_str, normal_small),
         Paragraph("1", normal_small),
-        Paragraph(val_f_ingreso, normal_small),
         Paragraph(val_contable_str, normal_small)
     ]
 
     total_row = [
         Paragraph("<b>TOTALES:</b>", normal_small),
-        "", "", "", "", "", "", "", "", "", "",
+        "", "", "", "", "", "", "", "", "",
         Paragraph("<b>1</b>", normal_small),
         Paragraph(f"<b>{val_contable_str}</b>", normal_small)
     ]
@@ -234,7 +241,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('SPAN', (0, 2), (10, 2)),
+        ('SPAN', (0, 2), (9, 2)),
         ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#F3F4F6')),
     ]))
     story.append(t)
@@ -284,6 +291,9 @@ elif archivos_excel:
     df = cargar_excel(archivo_local)
     nombre_excel_activo = archivo_local
 
+fecha_en_nombre = extraer_fecha_nombre(nombre_excel_activo)
+display_reporte = f"📅 {fecha_en_nombre}" if fecha_en_nombre else nombre_excel_activo
+
 ruta_escudo_activa = obtener_ruta_escudo()
 if ruta_escudo_activa:
     nombre_escudo_activo = ruta_escudo_activa.replace("escudo_", "")
@@ -310,7 +320,7 @@ if df is not None:
             col_map['custodio'] = col
         elif 'cedula' in col_lower or 'ruc' in col_lower:
             col_map['cedula'] = col
-        elif ('fecha' in col_lower or 'ingreso' in col_lower or 'alta' in col_lower) and 'asigna' not in col_lower:
+        elif 'ingreso' in col_lower and 'fecha_ingreso' not in col_map:
             col_map['fecha_ingreso'] = col
         elif 'valor' in col_lower or 'contable' in col_lower:
             col_map['valor'] = col
@@ -328,7 +338,7 @@ if df is not None:
 
     st.markdown(
         f"<p style='color: #CBD5E1; font-size: 0.82rem; margin-bottom: 6px; line-height: 1.4;'>"
-        f"📄 Reporte: <b style='color: #93C5FD;'>{nombre_excel_activo}</b> &nbsp;|&nbsp; "
+        f"📄 Reporte: <b style='color: #93C5FD;'>{display_reporte}</b> &nbsp;|&nbsp; "
         f"🛡️ Escudo: <b style='color: #93C5FD;'>{nombre_escudo_activo}</b>"
         f"</p>", 
         unsafe_allow_html=True
