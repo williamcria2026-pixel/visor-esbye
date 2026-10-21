@@ -58,7 +58,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Función para cargar Excel
+# Función para cargar Excel de forma robusta con múltiples motores
 def cargar_excel(origen):
     for engine in ['calamine', 'openpyxl', None]:
         try:
@@ -105,7 +105,7 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Control de persistencia en session_state para evitar que el archivo se pierda al interactuar
+# Persistencia absoluta en session_state para que el archivo subido no se pierda al interactuar
 archivos_excel = [f for f in os.listdir('.') if f.endswith('.xlsx') or f.endswith('.xls')]
 
 if archivo_subido is not None:
@@ -124,7 +124,7 @@ df = st.session_state.df_activo
 display_reporte = st.session_state.nombre_reporte_activo
 fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
 
-# Función robusta para limpiar y validar fecha de ingreso
+# Funciones de limpieza de datos
 def limpiar_val_fecha(val):
     if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
         return "-"
@@ -157,7 +157,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para generar PDF
+# Función para generar el PDF oficial
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -236,7 +236,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
         Paragraph("Valor Contable", header_table)
     ]
 
-    val_contable = row.get(col_map.get('valor'), '-')
+    val_contable = row.get(col_map.get('valor'), '-') if col_map.get('valor') else '-'
     val_contable_clean = limpiar_val(val_contable)
     if val_contable_clean not in ["-", "."]:
         try:
@@ -248,13 +248,13 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
         val_contable_str = "-"
 
     data_row = [
-        Paragraph(limpiar_val(row.get(col_map.get('codigo'))), normal_small),
-        Paragraph(limpiar_val(row.get(col_map.get('anterior'))), normal_small),
-        Paragraph(limpiar_val(row.get(col_map.get('nombre'))), normal_small),
-        Paragraph(limpiar_val(row.get(col_map.get('serie'))), normal_small),
-        Paragraph(limpiar_val(row.get(col_map.get('modelo'))), normal_small),
-        Paragraph(limpiar_val(row.get(col_map.get('marca'))), normal_small),
-        Paragraph(limpiar_val(row.get(col_map.get('bodega'))), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('codigo'), '-')), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('anterior'), '-')), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('nombre'), '-')), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('serie'), '-')), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('modelo'), '-')), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('marca'), '-')), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('bodega'), '-')), normal_small),
         Paragraph("BLD", normal_small),
         Paragraph(val_f_ingreso_pdf, normal_small),
         Paragraph(fecha_acta_str, normal_small),
@@ -282,7 +282,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     story.append(t)
     story.append(Spacer(1, 25))
 
-    custodio_dinamico = limpiar_val(row.get(col_map.get('custodio')))
+    custodio_dinamico = limpiar_val(row.get(col_map.get('custodio'), '-')) if col_map.get('custodio') else '-'
 
     cell_entrega = [
         Paragraph("________________________________________", subtitle_style_center),
@@ -313,10 +313,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     return buffer
 
 ruta_escudo_activa = obtener_ruta_escudo()
-if ruta_escudo_activa:
-    nombre_escudo_activo = ruta_escudo_activa.replace("escudo_", "")
-else:
-    nombre_escudo_activo = "Sin escudo"
+nombre_escudo_activo = ruta_escudo_activa.replace("escudo_", "") if ruta_escudo_activa else "Sin escudo"
 
 if df is not None:
     df.columns = df.columns.astype(str).str.strip()
@@ -325,49 +322,41 @@ if df is not None:
     col_map = {}
     col_fecha_ingreso_real = None
 
+    # MAPEO ESTRICTO INTELIGENTE POR NOMBRE DE ENCABEZADO (SIN USAR POSICIONES FIJAS)
     for idx, col in enumerate(cols):
         c_low = str(col).lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
         
         if c_low == 'fecha de ingreso' or idx == 37:
             col_fecha_ingreso_real = col
 
-        if 'codigo del bien' in c_low:
+        if 'codigo del bien' in c_low or c_low == 'codigo bien' or c_low == 'cod_bien':
             col_map['codigo'] = col
         elif 'codigo anterior' in c_low:
             col_map['anterior'] = col
-        elif c_low == 'bien' or (('bien' in c_low) and 'codigo' not in c_low and 'nombre' not in col_map):
-            col_map['nombre'] = col
+        elif c_low == 'bien' or 'nombre del bien' in c_low or 'descripcion' in c_low:
+            if 'nombre' not in col_map:
+                col_map['nombre'] = col
         elif 'serie' in c_low or 'identificacion' in c_low:
-            col_map['serie'] = col
-        elif 'caracteristicas' in c_low:
-            col_map['modelo'] = col
-        elif 'marca' in c_low or 'otros' in c_low:
-            col_map['marca'] = col
+            if 'serie' not in col_map:
+                col_map['serie'] = col
+        elif 'modelo' in c_low or 'caracteristicas' in c_low:
+            if 'modelo' not in col_map:
+                col_map['modelo'] = col
+        elif 'marca' in c_low or 'raza' in c_low or 'otros' in c_low:
+            if 'marca' not in col_map:
+                col_map['marca'] = col
         elif 'bodega' in c_low:
             col_map['bodega'] = col
         elif 'cedula' in c_low or 'ruc' in c_low:
             col_map['cedula'] = col
         elif 'custodio' in c_low:
             col_map['custodio'] = col
-        elif 'valor contable' in c_low or 'contable' in c_low:
+        elif 'valor contable' in c_low or c_low == 'valor' or 'contable' in c_low:
             col_map['valor'] = col
 
-    if not col_fecha_ingreso_real and len(cols) > 37:
-        col_fecha_ingreso_real = cols[37]
-
-    if 'codigo' not in col_map and len(cols) > 0: col_map['codigo'] = cols[0]
-    if 'anterior' not in col_map and len(cols) > 1: col_map['anterior'] = cols[1]
-    if 'nombre' not in col_map and len(cols) > 3: col_map['nombre'] = cols[3]
-    if 'serie' not in col_map and len(cols) > 4: col_map['serie'] = cols[4]
-    if 'modelo' not in col_map and len(cols) > 5: col_map['modelo'] = cols[5]
-    if 'marca' not in col_map and len(cols) > 6: col_map['marca'] = cols[6]
-    if 'bodega' not in col_map and len(cols) > 7: col_map['bodega'] = cols[7]
-    if 'cedula' not in col_map and len(cols) > 8: col_map['cedula'] = cols[8]
-    if 'custodio' not in col_map and len(cols) > 9: col_map['custodio'] = cols[9]
-    if 'valor' not in col_map and len(cols) > 11: col_map['valor'] = cols[11]
-
+    # Asignaciones de seguridad basadas estrictamente en nombres si faltara alguno crítico
     c_codigo = col_map.get('codigo', cols[0])
-    c_serie = col_map.get('serie', cols[4] if len(cols) > 4 else cols[0])
+    c_serie = col_map.get('serie', c_codigo)
     c_anterior = col_map.get('anterior', c_codigo)
 
     st.markdown(
@@ -405,8 +394,8 @@ if df is not None:
     termino_busqueda = st.session_state.busqueda_val.strip()
 
     if termino_busqueda:
-        s_codigo_str = df[c_codigo].astype(str).str.strip()
-        s_serie_str = df[c_serie].astype(str).str.strip()
+        s_codigo_str = df[c_codigo].astype(str).str.strip() if c_codigo in df.columns else pd.Series([""] * len(df))
+        s_serie_str = df[c_serie].astype(str).str.strip() if c_serie in df.columns else pd.Series([""] * len(df))
         s_anterior_str = df[c_anterior].astype(str).str.strip() if c_anterior in df.columns else pd.Series([""] * len(df))
 
         res = df[
@@ -424,8 +413,8 @@ if df is not None:
         if not res.empty:
             row = res.iloc[0]
             
-            val_bien = limpiar_val(row.get(col_map.get('nombre'), '-'))
-            val_bodega = limpiar_val(row.get(col_map.get('bodega'), '-'))
+            val_bien = limpiar_val(row.get(col_map.get('nombre'), '-')) if col_map.get('nombre') else '-'
+            val_bodega = limpiar_val(row.get(col_map.get('bodega'), '-')) if col_map.get('bodega') else '-'
             
             val_fecha_ingreso = "-"
             if col_fecha_ingreso_real and col_fecha_ingreso_real in row:
@@ -436,7 +425,7 @@ if df is not None:
             st.success(f"📌 **BIEN:** {val_bien}")
             st.info(f"🏢 **BODEGA:** {val_bodega}")
             
-            val_contable = row.get(col_map.get('valor'), '-')
+            val_contable = row.get(col_map.get('valor'), '-') if col_map.get('valor') else '-'
             val_contable_clean = limpiar_val(val_contable)
             if val_contable_clean not in ["-", "."]:
                 try:
@@ -449,11 +438,11 @@ if df is not None:
             tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
             
             with tab1:
-                st.write(f"**Código del Bien:** {limpiar_val(row.get(c_codigo))}")
-                st.write(f"**Código Anterior:** {limpiar_val(row.get(c_anterior))}")
+                st.write(f"**Código del Bien:** {limpiar_val(row.get(c_codigo, '-'))}")
+                st.write(f"**Código Anterior:** {limpiar_val(row.get(c_anterior, '-'))}")
                 st.write(f"**Marca:** {limpiar_val(row.get(col_map.get('marca'), '-'))}")
                 st.write(f"**Modelo:** {limpiar_val(row.get(col_map.get('modelo'), '-'))}")
-                st.write(f"**Serie:** {limpiar_val(row.get(c_serie))}")
+                st.write(f"**Serie:** {limpiar_val(row.get(c_serie, '-'))}")
                 st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}")
                 st.write(f"**Valor Contable:** {val_contable_fmt}")
                 
