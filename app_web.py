@@ -22,7 +22,7 @@ st.markdown("""
     <style>
         .block-container {
             padding-top: 1.5rem;
-            padding-bottom: 1rem;
+            padding-bottom: 1.0rem;
             padding-left: 0.8rem;
             padding-right: 0.8rem;
         }
@@ -72,7 +72,7 @@ def cargar_excel(origen):
             continue
     return None
 
-# Función inteligente para detectar el escudo activo
+# Función inteligente y flexible para detectar cualquier escudo institucional
 def obtener_ruta_escudo():
     for f in os.listdir('.'):
         if f.lower().startswith('escudo') and f.lower().endswith(('png', 'jpg', 'jpeg')):
@@ -84,17 +84,14 @@ with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
     
-    # GUARDADO PERMANENTE CON MENSAJE DE CONFIRMACIÓN VISUAL
+    # GUARDADO PERMANENTE DEL REPORTE SIN BUCLES DE TITILEO
     if archivo_subido is not None:
         try:
             with open("reporte_activo.xlsx", "wb") as f:
                 f.write(archivo_subido.getbuffer())
             with open("nombre_reporte.txt", "w", encoding="utf-8") as f:
                 f.write(archivo_subido.name)
-            st.session_state.nombre_reporte_activo = archivo_subido.name
-            st.success(f"¡Archivo '{archivo_subido.name}' subido y procesado con éxito!")
-            time.sleep(0.5)
-            st.rerun()
+            st.success(f"Reporte '{archivo_subido.name}' cargado con éxito.")
         except Exception as e:
             st.error(f"Error al guardar archivo: {e}")
 
@@ -104,16 +101,18 @@ with st.sidebar:
     
     if escudo_subido is not None:
         try:
-            nombre_escudo_guardado = f"escudo_{escudo_subido.name}"
+            # Normalizamos el nombre guardado para que comience con 'escudo_' y mantenga su extensión real
+            ext = escudo_subido.name.split('.')[-1].lower()
+            nombre_escudo_guardado = f"escudo.{ext}"
             for f in os.listdir('.'):
-                if f.lower().startswith('escudo'):
+                if f.lower().startswith('escudo') and f != nombre_escudo_guardado:
                     try: os.remove(f)
                     except: pass
             with open(nombre_escudo_guardado, "wb") as f:
                 f.write(escudo_subido.getbuffer())
-            st.success("¡Escudo actualizado con éxito!")
-        except Exception:
-            pass
+            st.success("¡Escudo institucional actualizado!")
+        except Exception as e:
+            st.error(f"Error al guardar el escudo: {e}")
 
 # Encabezado corporativo
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -339,7 +338,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     return buffer
 
 ruta_escudo_activa = obtener_ruta_escudo()
-nombre_escudo_activo = ruta_escudo_activa.replace("escudo_", "") if ruta_escudo_activa else "Sin escudo"
+nombre_escudo_activo = ruta_escudo_activa if ruta_escudo_activa else "Sin escudo"
 
 if df is not None:
     df.columns = df.columns.astype(str).str.strip()
