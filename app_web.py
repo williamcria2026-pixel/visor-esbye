@@ -222,7 +222,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
         Paragraph(limpiar_val(row.get(col_map.get('marca'))), normal_small),
         Paragraph(limpiar_val(row.get(col_map.get('bodega'))), normal_small),
         Paragraph("BLD", normal_small),
-        Paragraph(val_f_ingreso, normal_small), # Fecha de Ingreso del bien
+        Paragraph(val_f_ingreso, normal_small), # Fecha de Ingreso exacta en el PDF
         Paragraph(fecha_acta_str, normal_small),
         Paragraph("1", normal_small),
         Paragraph(val_contable_str, normal_small)
@@ -302,12 +302,13 @@ else:
 
 if df is not None:
     df.columns = df.columns.astype(str).str.strip()
+    cols = list(df.columns)
     
     col_map = {}
-    for col in df.columns:
-        c_low = col.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
+    for col in cols:
+        c_low = str(col).lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
         
-        if 'codigo del bien' in c_low or c_low == 'codigo del bien':
+        if 'codigo del bien' in c_low:
             col_map['codigo'] = col
         elif 'codigo anterior' in c_low:
             col_map['anterior'] = col
@@ -319,18 +320,18 @@ if df is not None:
             col_map['modelo'] = col
         elif 'marca' in c_low or 'otros' in c_low:
             col_map['marca'] = col
-        elif c_low == 'bodega' or 'bodega' in c_low:
+        elif 'bodega' in c_low:
             col_map['bodega'] = col
         elif 'cedula' in c_low or 'ruc' in c_low:
             col_map['cedula'] = col
         elif 'custodio' in c_low:
             col_map['custodio'] = col
-        elif c_low == 'fecha de ingreso' or c_low == 'fecha ingreso':
+        elif 'fecha de ingreso' in c_low or c_low == 'fecha ingreso':
             col_map['fecha_ingreso'] = col
         elif 'valor contable' in c_low or 'contable' in c_low:
             col_map['valor'] = col
 
-    cols = list(df.columns)
+    # Respaldos seguros por posición basados exactamente en el reporte oficial
     if 'codigo' not in col_map and len(cols) > 0: col_map['codigo'] = cols[0]
     if 'anterior' not in col_map and len(cols) > 1: col_map['anterior'] = cols[1]
     if 'nombre' not in col_map and len(cols) > 3: col_map['nombre'] = cols[3]
@@ -340,7 +341,11 @@ if df is not None:
     if 'bodega' not in col_map and len(cols) > 7: col_map['bodega'] = cols[7]
     if 'cedula' not in col_map and len(cols) > 8: col_map['cedula'] = cols[8]
     if 'custodio' not in col_map and len(cols) > 9: col_map['custodio'] = cols[9]
-    if 'fecha_ingreso' not in col_map and len(cols) > 10: col_map['fecha_ingreso'] = cols[10]
+    if 'fecha_ingreso' not in col_map:
+        if len(cols) > 37:
+            col_map['fecha_ingreso'] = cols[37]  # Columna AL por si aplica en otros formatos
+        elif len(cols) > 10:
+            col_map['fecha_ingreso'] = cols[10]  # Columna 'Fecha de Ingreso' estándar (índice 10)
     if 'valor' not in col_map and len(cols) > 11: col_map['valor'] = cols[11]
 
     c_codigo = col_map.get('codigo', cols[0])
@@ -428,7 +433,7 @@ if df is not None:
                 st.write(f"**Marca:** {limpiar_val(row.get(col_map.get('marca'), '-'))}")
                 st.write(f"**Modelo:** {limpiar_val(row.get(col_map.get('modelo'), '-'))}")
                 st.write(f"**Serie:** {limpiar_val(row.get(c_serie))}")
-                st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}")
+                st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}") # Mapeo correcto de la fecha de ingreso
                 st.write(f"**Valor Contable:** {val_contable_fmt}")
                 
             with tab2:
