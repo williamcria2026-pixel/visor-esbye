@@ -58,26 +58,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Barra lateral para opciones y archivos
+# Barra lateral limpia (únicamente para subir el nuevo reporte Excel)
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
-    
-    st.divider()
-    st.subheader("🛡️ Escudo Institucional")
-    escudo_subido = st.file_uploader("Subir imagen del escudo", type=["png", "jpg", "jpeg"], key="uploader_escudo")
-    
-    if escudo_subido is not None:
-        try:
-            nombre_escudo_guardado = f"escudo_{escudo_subido.name}"
-            for f in os.listdir('.'):
-                if f.lower().startswith('escudo'):
-                    try: os.remove(f)
-                    except: pass
-            with open(nombre_escudo_guardado, "wb") as f:
-                f.write(escudo_subido.getbuffer())
-        except Exception:
-            pass
 
 # Encabezado corporativo
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -105,7 +89,7 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
-# Función inteligente para detectar el archivo de escudo activo
+# Función inteligente para detectar el escudo fijo en el servidor
 def obtener_ruta_escudo():
     for f in os.listdir('.'):
         if f.lower().startswith('escudo'):
@@ -119,7 +103,7 @@ def extraer_fecha_nombre(nombre):
         return match.group(1)
     return None
 
-# Función para generar el PDF respetando estrictamente el formato original de las columnas
+# Función para generar el PDF respetando el formato original y el escudo fijo
 def generar_acta_pdf(row, fecha_acta_str, col_map):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -182,7 +166,6 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
     story.append(Paragraph(f"<b>FECHA:</b> {fecha_acta_str}", normal_small))
     story.append(Spacer(1, 4))
 
-    # Formato original exacto de 12 columnas
     col_widths = [55, 55, 120, 65, 55, 75, 90, 40, 50, 50, 30, 55]
     headers = [
         Paragraph("Código Bien", header_table),
@@ -221,7 +204,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
         Paragraph(limpiar_val(row.get(col_map.get('marca'))), normal_small),
         Paragraph(limpiar_val(row.get(col_map.get('bodega'))), normal_small),
         Paragraph("BLD", normal_small),
-        Paragraph(val_f_ingreso, normal_small), # <-- Fecha de ingreso del archivo en su lugar original
+        Paragraph(val_f_ingreso, normal_small),
         Paragraph(fecha_acta_str, normal_small),
         Paragraph("1", normal_small),
         Paragraph(val_contable_str, normal_small)
@@ -294,19 +277,16 @@ elif archivos_excel:
 fecha_en_nombre = extraer_fecha_nombre(nombre_excel_activo)
 display_reporte = f"📅 {fecha_en_nombre}" if fecha_en_nombre else nombre_excel_activo
 
-ruta_escudo_activa = obtener_ruta_escudo()
-if ruta_escudo_activa:
-    nombre_escudo_activo = ruta_escudo_activa.replace("escudo_", "")
-else:
-    nombre_escudo_activo = "Sin escudo"
-
 if df is not None:
     df.columns = df.columns.astype(str).str.strip()
     
     col_map = {}
     for col in df.columns:
         col_lower = col.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
-        if 'codigo' in col_lower and 'ant' not in col_lower:
+        
+        if 'ingreso' in col_lower and 'fecha_ingreso' not in col_map:
+            col_map['fecha_ingreso'] = col
+        elif 'codigo' in col_lower and 'ant' not in col_lower:
             col_map['codigo'] = col
         elif 'serie' in col_lower or 'identificacion' in col_lower:
             col_map['serie'] = col
@@ -320,8 +300,6 @@ if df is not None:
             col_map['custodio'] = col
         elif 'cedula' in col_lower or 'ruc' in col_lower:
             col_map['cedula'] = col
-        elif 'ingreso' in col_lower and 'fecha_ingreso' not in col_map:
-            col_map['fecha_ingreso'] = col
         elif 'valor' in col_lower or 'contable' in col_lower:
             col_map['valor'] = col
         elif 'marca' in col_lower or 'raza' in col_lower or 'otros' in col_lower:
@@ -336,11 +314,11 @@ if df is not None:
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
 
+    # Indicador superior limpio mostrando únicamente el reporte activo
     st.markdown(
-        f"<p style='color: #CBD5E1; font-size: 0.82rem; margin-bottom: 6px; line-height: 1.4;'>"
-        f"📄 Reporte: <b style='color: #93C5FD;'>{display_reporte}</b> &nbsp;|&nbsp; "
-        f"🛡️ Escudo: <b style='color: #93C5FD;'>{nombre_escudo_activo}</b>"
-        f"</p>", 
+        f"<div style='background-color: #1E293B; padding: 6px 10px; border-radius: 6px; margin-bottom: 8px; text-align: center;'>"
+        f"<span style='color: #CBD5E1; font-size: 0.85rem;'>📄 Reporte Activo: <b style='color: #93C5FD;'>{display_reporte}</b></span>"
+        f"</div>", 
         unsafe_allow_html=True
     )
     st.markdown("<p style='color: #FFFFFF; font-weight: bold; font-size: 0.95rem; margin-bottom: 2px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
