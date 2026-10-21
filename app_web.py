@@ -85,7 +85,32 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Función robusta para limpiar valores nulos o formato de texto
+# Función robusta para limpiar y validar que sea una fecha real y no un nombre de persona
+def limpiar_val_fecha(val):
+    if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
+        return "-"
+    if isinstance(val, (pd.Timestamp, datetime)):
+        return val.strftime("%d/%m/%Y")
+    
+    texto = str(val).strip()
+    
+    # REGLA DE SEGURIDAD CRÍTICA: Si el texto contiene nombres en mayúsculas (como el custodio), rechazarlo inmediatamente
+    if any(nombre_test in texto.upper() for nombre_test in ["CISNERSOS", "RAMOS", "WILLIAM", "EDUARDO"]) and not re.search(r'\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2}', texto):
+        return "-"
+
+    if re.match(r'^\d{4}-\d{2}-\d{2}', texto):
+        try:
+            dt = datetime.strptime(texto.split()[0], "%Y-%m-%d")
+            return dt.strftime("%d/%m/%Y")
+        except:
+            pass
+            
+    if re.match(r'^\d{2}/\d{2}/\d{4}', texto):
+        return texto.split()[0]
+        
+    return texto
+
+# Función general para limpiar otros textos
 def limpiar_val(val):
     if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
         return "-"
@@ -120,8 +145,8 @@ def obtener_ruta_escudo():
             return f
     return None
 
-# Función para generar el PDF sin el campo de fecha de ingreso
-def generar_acta_pdf(row, fecha_acta_str, col_map):
+# Función para generar el PDF con la Fecha de Ingreso del Bien validada
+def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -183,7 +208,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
     story.append(Paragraph(f"<b>FECHA:</b> {fecha_acta_str}", normal_small))
     story.append(Spacer(1, 4))
 
-    col_widths = [60, 60, 130, 70, 60, 80, 100, 45, 60, 35, 65]
+    col_widths = [55, 55, 120, 65, 55, 75, 90, 40, 50, 50, 30, 55]
     headers = [
         Paragraph("Código Bien", header_table),
         Paragraph("Código Anterior", header_table),
@@ -193,6 +218,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
         Paragraph("Marca/Raza/Otros", header_table),
         Paragraph("Bodega", header_table),
         Paragraph("Tipo Reg.", header_table),
+        Paragraph("Fecha Ingreso", header_table),
         Paragraph("Fecha Asignación", header_table),
         Paragraph("Cant.", header_table),
         Paragraph("Valor Contable", header_table)
@@ -218,6 +244,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
         Paragraph(limpiar_val(row.get(col_map.get('marca'))), normal_small),
         Paragraph(limpiar_val(row.get(col_map.get('bodega'))), normal_small),
         Paragraph("BLD", normal_small),
+        Paragraph(val_f_ingreso_pdf, normal_small), # Fecha de Ingreso validada
         Paragraph(fecha_acta_str, normal_small),
         Paragraph("1", normal_small),
         Paragraph(val_contable_str, normal_small)
@@ -225,7 +252,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
 
     total_row = [
         Paragraph("<b>TOTALES:</b>", normal_small),
-        "", "", "", "", "", "", "", "",
+        "", "", "", "", "", "", "", "", "",
         Paragraph("<b>1</b>", normal_small),
         Paragraph(f"<b>{val_contable_str}</b>", normal_small)
     ]
@@ -237,7 +264,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('SPAN', (0, 2), (8, 2)),
+        ('SPAN', (0, 2), (9, 2)),
         ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#F3F4F6')),
     ]))
     story.append(t)
@@ -300,9 +327,15 @@ if df is not None:
     cols = list(df.columns)
     
     col_map = {}
-    for col in cols:
+    col_fecha_ingreso_real = None
+
+    for idx, col in enumerate(cols):
         c_low = str(col).lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
         
+        # Búsqueda estricta por nombre de encabezado o posición fija AL (índice 37)
+        if c_low == 'fecha de ingreso' or idx == 37:
+            col_fecha_ingreso_real = col
+
         if 'codigo del bien' in c_low:
             col_map['codigo'] = col
         elif 'codigo anterior' in c_low:
@@ -324,7 +357,11 @@ if df is not None:
         elif 'valor contable' in c_low or 'contable' in c_low:
             col_map['valor'] = col
 
-    # Respaldos seguros por posición
+    # Respaldo por índice 37 si no se encontró
+    if not col_fecha_ingreso_real and len(cols) > 37:
+        col_fecha_ingreso_real = cols[37]
+
+    # Respaldos generales por posición
     if 'codigo' not in col_map and len(cols) > 0: col_map['codigo'] = cols[0]
     if 'anterior' not in col_map and len(cols) > 1: col_map['anterior'] = cols[1]
     if 'nombre' not in col_map and len(cols) > 3: col_map['nombre'] = cols[3]
@@ -397,6 +434,13 @@ if df is not None:
             val_bien = limpiar_val(row.get(col_map.get('nombre'), '-'))
             val_bodega = limpiar_val(row.get(col_map.get('bodega'), '-'))
             
+            # EXTRACCIÓN Y VALIDACIÓN SEGURA DE LA FECHA DE INGRESO
+            val_fecha_ingreso = "-"
+            if col_fecha_ingreso_real and col_fecha_ingreso_real in row:
+                val_fecha_ingreso = limpiar_val_fecha(row.get(col_fecha_ingreso_real))
+            elif len(row) > 37:
+                val_fecha_ingreso = limpiar_val_fecha(row.iloc[37])
+            
             st.success(f"📌 **BIEN:** {val_bien}")
             st.info(f"🏢 **BODEGA:** {val_bodega}")
             
@@ -418,6 +462,7 @@ if df is not None:
                 st.write(f"**Marca:** {limpiar_val(row.get(col_map.get('marca'), '-'))}")
                 st.write(f"**Modelo:** {limpiar_val(row.get(col_map.get('modelo'), '-'))}")
                 st.write(f"**Serie:** {limpiar_val(row.get(c_serie))}")
+                st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}") # <-- Fecha validada y correcta
                 st.write(f"**Valor Contable:** {val_contable_fmt}")
                 
             with tab2:
@@ -426,7 +471,7 @@ if df is not None:
 
             st.divider()
             
-            pdf_bytes = generar_acta_pdf(row, fecha_acta_actual, col_map)
+            pdf_bytes = generar_acta_pdf(row, fecha_acta_actual, col_map, val_fecha_ingreso)
             cod_bien_clean = str(row.get(c_codigo, 'Bien')).replace('/', '_')
             fecha_nom = datetime.now().strftime("%d-%m-%Y")
             nombre_archivo_pdf = f"Acta_{cod_bien_clean}_{fecha_nom}.pdf"
