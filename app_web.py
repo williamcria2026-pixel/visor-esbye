@@ -107,7 +107,7 @@ def obtener_ruta_escudo():
             return f
     return None
 
-# Función para generar el PDF del Acta con el Escudo a la izquierda y fondo blanco
+# Función para generar el PDF del Acta con la fecha actual
 def generar_acta_pdf(row, fecha_acta_str, col_map):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -270,6 +270,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
 archivos_excel = [f for f in os.listdir('.') if f.endswith('.xlsx') or f.endswith('.xls')]
 
 df = None
+# Fijar estrictamente la fecha actual para el reporte y las actas
 fecha_archivo_str = datetime.now().strftime("%d/%m/%Y")
 
 if archivo_subido is not None:
@@ -277,11 +278,6 @@ if archivo_subido is not None:
 elif archivos_excel:
     archivo_local = archivos_excel[0]
     df = cargar_excel(archivo_local)
-    try:
-        timestamp = os.path.getmtime(archivo_local)
-        fecha_archivo_str = time.strftime('%d/%m/%Y', time.localtime(timestamp))
-    except:
-        pass
 
 if df is not None:
     # Limpieza y normalización robusta de nombres de columnas
@@ -318,7 +314,7 @@ if df is not None:
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
 
-    # Bloque de Fecha y Título del buscador
+    # Bloque de Fecha actual y Título del buscador
     st.markdown(f"<p style='color: #CBD5E1; font-size: 0.85rem; margin-bottom: 4px;'>📅 Base actualizada: <b>{fecha_archivo_str}</b></p>", unsafe_allow_html=True)
     st.markdown("<p style='color: #FFFFFF; font-weight: bold; font-size: 0.95rem; margin-bottom: 2px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
 
