@@ -85,7 +85,7 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Función robusta para limpiar valores nulos o formato de fecha
+# Función robusta para limpiar valores nulos o formato de texto
 def limpiar_val(val):
     if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
         return "-"
@@ -120,8 +120,8 @@ def obtener_ruta_escudo():
             return f
     return None
 
-# Función para generar el PDF respetando el formato original y la fecha de ingreso de la fila encontrada
-def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
+# Función para generar el PDF sin el campo de fecha de ingreso
+def generar_acta_pdf(row, fecha_acta_str, col_map):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -183,7 +183,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     story.append(Paragraph(f"<b>FECHA:</b> {fecha_acta_str}", normal_small))
     story.append(Spacer(1, 4))
 
-    col_widths = [55, 55, 120, 65, 55, 75, 90, 40, 50, 50, 30, 55]
+    col_widths = [60, 60, 130, 70, 60, 80, 100, 45, 60, 35, 65]
     headers = [
         Paragraph("Código Bien", header_table),
         Paragraph("Código Anterior", header_table),
@@ -193,7 +193,6 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
         Paragraph("Marca/Raza/Otros", header_table),
         Paragraph("Bodega", header_table),
         Paragraph("Tipo Reg.", header_table),
-        Paragraph("Fecha Ingreso", header_table),
         Paragraph("Fecha Asignación", header_table),
         Paragraph("Cant.", header_table),
         Paragraph("Valor Contable", header_table)
@@ -219,7 +218,6 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
         Paragraph(limpiar_val(row.get(col_map.get('marca'))), normal_small),
         Paragraph(limpiar_val(row.get(col_map.get('bodega'))), normal_small),
         Paragraph("BLD", normal_small),
-        Paragraph(val_f_ingreso_pdf, normal_small), # Fecha de Ingreso de la fila encontrada
         Paragraph(fecha_acta_str, normal_small),
         Paragraph("1", normal_small),
         Paragraph(val_contable_str, normal_small)
@@ -227,7 +225,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
 
     total_row = [
         Paragraph("<b>TOTALES:</b>", normal_small),
-        "", "", "", "", "", "", "", "", "",
+        "", "", "", "", "", "", "", "",
         Paragraph("<b>1</b>", normal_small),
         Paragraph(f"<b>{val_contable_str}</b>", normal_small)
     ]
@@ -239,7 +237,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('SPAN', (0, 2), (9, 2)),
+        ('SPAN', (0, 2), (8, 2)),
         ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#F3F4F6')),
     ]))
     story.append(t)
@@ -326,7 +324,7 @@ if df is not None:
         elif 'valor contable' in c_low or 'contable' in c_low:
             col_map['valor'] = col
 
-    # Respaldos generales por posición
+    # Respaldos seguros por posición
     if 'codigo' not in col_map and len(cols) > 0: col_map['codigo'] = cols[0]
     if 'anterior' not in col_map and len(cols) > 1: col_map['anterior'] = cols[1]
     if 'nombre' not in col_map and len(cols) > 3: col_map['nombre'] = cols[3]
@@ -394,25 +392,10 @@ if df is not None:
             ]
             
         if not res.empty:
-            # Tomamos la fila exacta encontrada mediante la búsqueda por código o serie
             row = res.iloc[0]
             
             val_bien = limpiar_val(row.get(col_map.get('nombre'), '-'))
             val_bodega = limpiar_val(row.get(col_map.get('bodega'), '-'))
-            
-            # EXTRACCIÓN DIRECTA DE LA FECHA DE INGRESO PARA ESTA FILA ENCONTRADA:
-            # 1. Buscando primero por nombre de columna que contenga "fecha" e "ingreso"
-            # 2. Respaldo directo en la columna AL (índice 37) de la fila específica
-            val_fecha_ingreso = "-"
-            for col_name in df.columns:
-                c_clean = str(col_name).strip().lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
-                if 'fecha' in c_clean and 'ingreso' in c_clean:
-                    val_fecha_ingreso = limpiar_val(row.get(col_name, '-'))
-                    if val_fecha_ingreso != "-":
-                        break
-            
-            if val_fecha_ingreso == "-" and len(row) > 37:
-                val_fecha_ingreso = limpiar_val(row.iloc[37])
             
             st.success(f"📌 **BIEN:** {val_bien}")
             st.info(f"🏢 **BODEGA:** {val_bodega}")
@@ -435,7 +418,6 @@ if df is not None:
                 st.write(f"**Marca:** {limpiar_val(row.get(col_map.get('marca'), '-'))}")
                 st.write(f"**Modelo:** {limpiar_val(row.get(col_map.get('modelo'), '-'))}")
                 st.write(f"**Serie:** {limpiar_val(row.get(c_serie))}")
-                st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}") # <-- Fecha exacta de la fila encontrada
                 st.write(f"**Valor Contable:** {val_contable_fmt}")
                 
             with tab2:
@@ -444,7 +426,7 @@ if df is not None:
 
             st.divider()
             
-            pdf_bytes = generar_acta_pdf(row, fecha_acta_actual, col_map, val_fecha_ingreso)
+            pdf_bytes = generar_acta_pdf(row, fecha_acta_actual, col_map)
             cod_bien_clean = str(row.get(c_codigo, 'Bien')).replace('/', '_')
             fecha_nom = datetime.now().strftime("%d-%m-%Y")
             nombre_archivo_pdf = f"Acta_{cod_bien_clean}_{fecha_nom}.pdf"
@@ -457,6 +439,6 @@ if df is not None:
                 use_container_width=True
             )
         else:
-            st.error(f"❌ No se encontró ningún bien con el código o serie: {termino_busqueda}")
+            st.error(f"❌ No se encontró ningún bien con el código: {termino_busqueda}")
 else:
     st.warning("⚠️ No se encontró ningún archivo Excel válido o no se pudo cargar.")
