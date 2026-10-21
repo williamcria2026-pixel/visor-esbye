@@ -83,11 +83,14 @@ with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
     
-    # SOLUCIÓN F5: Guardado físico permanente en disco del archivo subido
+    # GUARDADO PERMANENTE Y RECARGA INSTANTÁNEA PARA PERSISTENCIA TRAS F5
     if archivo_subido is not None:
         try:
             with open("reporte_activo.xlsx", "wb") as f:
                 f.write(archivo_subido.getbuffer())
+            with open("nombre_reporte.txt", "w", encoding="utf-8") as f:
+                f.write(archivo_subido.name)
+            st.rerun()
         except Exception as e:
             st.error(f"Error al guardar archivo: {e}")
 
@@ -113,15 +116,22 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# CARGA DEL ARCHIVO DESDE EL DISCO (Persiste tras F5 o recargas)
+# RECUPERACIÓN DEL ARCHIVO Y SU NOMBRE ORIGINAL TRAS F5 O RECARGA
 df = None
 display_reporte = "Ninguno"
 
 if os.path.exists("reporte_activo.xlsx"):
     df = cargar_excel("reporte_activo.xlsx")
-    display_reporte = "reporte_activo.xlsx"
+    if os.path.exists("nombre_reporte.txt"):
+        try:
+            with open("nombre_reporte.txt", "r", encoding="utf-8") as f:
+                display_reporte = f.read().strip()
+        except:
+            display_reporte = "reporte_activo.xlsx"
+    else:
+        display_reporte = "reporte_activo.xlsx"
 else:
-    archivos_excel = [f for f in os.listdir('.') if (f.endswith('.xlsx') or f.endswith('.xls')) and not f.startswith('escudo')]
+    archivos_excel = [f for f in os.listdir('.') if (f.endswith('.xlsx') or f.endswith('.xls')) and not f.startswith('escudo') and f != 'nombre_reporte.txt']
     if archivos_excel:
         df = cargar_excel(archivos_excel[0])
         display_reporte = archivos_excel[0]
@@ -159,7 +169,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para generar el PDF oficial
+# Función para generar el PDF oficial manteniendo el formato exacto
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -324,56 +334,60 @@ if df is not None:
     col_map = {}
     col_fecha_ingreso_real = None
 
-    # MAPEO FLEXIBLE POR ENCABEZADOS REALES
+    # MAPEO EXACTO BASADO EN LA NUMERACIÓN DE COLUMNAS (Iniciando desde 1):
+    # Columna A (1) = Código del Bien -> Python índice 0
+    # Columna B (2) = Código Anterior -> Python índice 1
+    # Columna F (6) = Bien -> Python índice 5
+    # Columna G (7) = Serie / Identificación -> Python índice 6
+    # Columna H (8) = Modelo / Características -> Python índice 7
+    # Columna I (9) = Marca / Otros -> Python índice 8
+    # Columna U (21) = Bodega -> Python índice 20
+    # Columna X (24) = Nro de Cédula / RUC -> Python índice 23
+    # Columna Y (25) = Custodio Actual -> Python índice 24
+    # Columna AL (38) = Fecha de Ingreso -> Python índice 37
+    # Columna AP (42) = Valor Contable -> Python índice 41
+
     for idx, col in enumerate(cols):
         c_low = str(col).lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
         
-        if 'fecha de ingreso' in c_low or idx == 37:
+        if idx == 37 or 'fecha de ingreso' in c_low:
             col_fecha_ingreso_real = col
-
-        if 'codigo' in c_low and ('bien' in c_low or idx == 0):
+        elif idx == 0 or 'codigo del bien' in c_low or c_low == 'codigo bien':
             col_map['codigo'] = col
-        elif 'anterior' in c_low:
+        elif idx == 1 or 'codigo anterior' in c_low:
             col_map['anterior'] = col
-        elif c_low in ['bien', 'nombre del bien', 'descripcion', 'denominacion'] or ('bien' in c_low and 'codigo' not in c_low):
-            if 'nombre' not in col_map:
-                col_map['nombre'] = col
-        elif 'serie' in c_low or 'identificacion' in c_low:
-            if 'serie' not in col_map:
-                col_map['serie'] = col
-        elif 'modelo' in c_low or 'caracteristicas' in c_low:
-            if 'modelo' not in col_map:
-                col_map['modelo'] = col
-        elif 'marca' in c_low or 'raza' in c_low or 'otros' in c_low:
-            if 'marca' not in col_map:
-                col_map['marca'] = col
-        elif 'bodega' in c_low:
-            if 'bodega' not in col_map:
-                col_map['bodega'] = col
-        elif 'cedula' in c_low or 'ruc' in c_low:
-            if 'cedula' not in col_map:
-                col_map['cedula'] = col
-        elif 'custodio' in c_low:
-            if 'custodio' not in col_map:
-                col_map['custodio'] = col
-        elif 'valor' in c_low or 'contable' in c_low:
-            if 'valor' not in col_map:
-                col_map['valor'] = col
+        elif idx == 5 or c_low == 'bien' or 'nombre' in c_low:
+            col_map['nombre'] = col
+        elif idx == 6 or 'serie' in c_low or 'identificacion' in c_low:
+            col_map['serie'] = col
+        elif idx == 7 or 'modelo' in c_low or 'caracteristicas' in c_low:
+            col_map['modelo'] = col
+        elif idx == 8 or 'marca' in c_low or 'otros' in c_low:
+            col_map['marca'] = col
+        elif idx == 20 or 'bodega' in c_low:
+            col_map['bodega'] = col
+        elif idx == 23 or 'cedula' in c_low or 'ruc' in c_low:
+            col_map['cedula'] = col
+        elif idx == 24 or 'custodio' in c_low:
+            col_map['custodio'] = col
+        elif idx == 41 or 'valor contable' in c_low or 'contable' in c_low:
+            col_map['valor'] = col
 
-    # Respaldo por posiciones estándar si faltara algún campo crítico
+    # Respaldos directos por índice exacto basado en su estructura
     if 'codigo' not in col_map and len(cols) > 0: col_map['codigo'] = cols[0]
     if 'anterior' not in col_map and len(cols) > 1: col_map['anterior'] = cols[1]
-    if 'nombre' not in col_map and len(cols) > 3: col_map['nombre'] = cols[3]
-    if 'serie' not in col_map and len(cols) > 4: col_map['serie'] = cols[4]
-    if 'modelo' not in col_map and len(cols) > 5: col_map['modelo'] = cols[5]
-    if 'marca' not in col_map and len(cols) > 6: col_map['marca'] = cols[6]
-    if 'bodega' not in col_map and len(cols) > 7: col_map['bodega'] = cols[7]
-    if 'cedula' not in col_map and len(cols) > 8: col_map['cedula'] = cols[8]
-    if 'custodio' not in col_map and len(cols) > 9: col_map['custodio'] = cols[9]
-    if 'valor' not in col_map and len(cols) > 11: col_map['valor'] = cols[11]
+    if 'nombre' not in col_map and len(cols) > 5: col_map['nombre'] = cols[5]
+    if 'serie' not in col_map and len(cols) > 6: col_map['serie'] = cols[6]
+    if 'modelo' not in col_map and len(cols) > 7: col_map['modelo'] = cols[7]
+    if 'marca' not in col_map and len(cols) > 8: col_map['marca'] = cols[8]
+    if 'bodega' not in col_map and len(cols) > 20: col_map['bodega'] = cols[20]
+    if 'cedula' not in col_map and len(cols) > 23: col_map['cedula'] = cols[23]
+    if 'custodio' not in col_map and len(cols) > 24: col_map['custodio'] = cols[24]
+    if not col_fecha_ingreso_real and len(cols) > 37: col_fecha_ingreso_real = cols[37]
+    if 'valor' not in col_map and len(cols) > 41: col_map['valor'] = cols[41]
 
     c_codigo = col_map.get('codigo', cols[0])
-    c_serie = col_map.get('serie', cols[4] if len(cols) > 4 else cols[0])
+    c_serie = col_map.get('serie', cols[6] if len(cols) > 6 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
     st.markdown(
