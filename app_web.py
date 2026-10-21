@@ -108,7 +108,7 @@ def obtener_ruta_escudo():
     return None
 
 # Función para generar el PDF del Acta con el Escudo a la izquierda y fondo blanco
-def generar_acta_pdf(row, fecha_acta_str):
+def generar_acta_pdf(row, fecha_acta_str, col_map):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -150,7 +150,7 @@ def generar_acta_pdf(row, fecha_acta_str):
         except Exception as e:
             print(f"Error procesando escudo: {e}")
 
-    # 1. Encabezado institucional en Tabla (Escudo a la izquierda, textos centrados al lado)
+    # 1. Encabezado institucional en Tabla
     header_text_elements = [
         Paragraph("MINISTERIO DE ECONOMÍA Y FINANZAS", title_style),
         Paragraph("176-9999-0000-UNIVERSIDAD TÉCNICA DE AMBATO - PLANTA CENTRAL", subtitle_style_center),
@@ -190,7 +190,7 @@ def generar_acta_pdf(row, fecha_acta_str):
         Paragraph("Valor Contable", header_table)
     ]
 
-    val_contable = row.get('Valor Contable', '-')
+    val_contable = row.get(col_map.get('valor'), '-')
     val_contable_clean = limpiar_val(val_contable)
     if val_contable_clean not in ["-", "."]:
         try:
@@ -202,13 +202,13 @@ def generar_acta_pdf(row, fecha_acta_str):
         val_contable_str = "-"
 
     data_row = [
-        Paragraph(limpiar_val(row.get('Código del Bien')), normal_small),
-        Paragraph(limpiar_val(row.get('Código Anterior')), normal_small),
-        Paragraph(limpiar_val(row.get('Bien')), normal_small),
-        Paragraph(limpiar_val(row.get('Serie/ Identificación')), normal_small),
-        Paragraph(limpiar_val(row.get('Modelo/ Características')), normal_small),
-        Paragraph(limpiar_val(row.get('Marca/ Otros')), normal_small),
-        Paragraph(limpiar_val(row.get('Ubicación de Bodega')), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('codigo'))), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('anterior'))), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('nombre'))), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('serie'))), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('modelo'))), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('marca'))), normal_small),
+        Paragraph(limpiar_val(row.get(col_map.get('bodega'))), normal_small),
         Paragraph("BLD", normal_small),
         Paragraph("-", normal_small),
         Paragraph(fecha_acta_str, normal_small),
@@ -236,8 +236,8 @@ def generar_acta_pdf(row, fecha_acta_str):
     story.append(t)
     story.append(Spacer(1, 25))
 
-    # 3. Sección de Firmas (LÍNEAS Y TEXTOS 100% CENTRADOS)
-    custodio_dinamico = limpiar_val(row.get('Custodio Actual'))
+    # 3. Sección de Firmas
+    custodio_dinamico = limpiar_val(row.get(col_map.get('custodio')))
 
     cell_entrega = [
         Paragraph("________________________________________", subtitle_style_center),
@@ -284,6 +284,37 @@ elif archivos_excel:
         pass
 
 if df is not None:
+    # Limpieza y normalización robusta de nombres de columnas
+    df.columns = df.columns.astype(str).str.strip()
+    
+    col_map = {}
+    for col in df.columns:
+        col_lower = col.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+        if 'codigo' in col_lower and 'ant' not in col_lower:
+            col_map['codigo'] = col
+        elif 'serie' in col_lower or 'identificacion' in col_lower:
+            col_map['serie'] = col
+        elif 'anterior' in col_lower:
+            col_map['anterior'] = col
+        elif 'bien' in col_lower and 'codigo' not in col_lower:
+            col_map['nombre'] = col
+        elif 'bodega' in col_lower:
+            col_map['bodega'] = col
+        elif 'custodio' in col_lower:
+            col_map['custodio'] = col
+        elif 'cedula' in col_lower or 'ruc' in col_lower:
+            col_map['cedula'] = col
+        elif 'valor' in col_lower or 'contable' in col_lower:
+            col_map['valor'] = col
+        elif 'marca' in col_lower or 'raza' in col_lower or 'otros' in col_lower:
+            col_map['marca'] = col
+        elif 'modelo' in col_lower or 'caracteristicas' in col_lower:
+            col_map['modelo'] = col
+
+    c_codigo = col_map.get('codigo', df.columns[0])
+    c_serie = col_map.get('serie', df.columns[1] if len(df.columns) > 1 else df.columns[0])
+    c_anterior = col_map.get('anterior', df.columns[0])
+
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
 
@@ -294,7 +325,6 @@ if df is not None:
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
 
-    # Fila única perfecta lado a lado usando callback y un estado controlado por clave única
     col_input, col_btn = st.columns([4.2, 0.8])
     
     def limpiar_callback():
@@ -315,31 +345,31 @@ if df is not None:
     with col_btn:
         st.button("🗑️", on_click=limpiar_callback, help="Limpiar búsqueda", use_container_width=True)
 
-    # Usamos la variable de sesión limpia para la búsqueda
     termino_busqueda = st.session_state.busqueda_val.strip()
 
     if termino_busqueda:
         res = df[
-            (df["Código del Bien"].str.lower() == termino_busqueda.lower()) |
-            (df["Serie/ Identificación"].str.lower() == termino_busqueda.lower()) |
-            (df["Código Anterior"].str.lower() == termino_busqueda.lower())
+            (df[c_codigo].str.lower() == termino_busqueda.lower()) |
+            (df[c_serie].str.lower() == termino_busqueda.lower()) |
+            (df[c_anterior].str.lower() == termino_busqueda.lower())
         ]
         
         if res.empty:
             res = df[
-                (df["Código del Bien"].str.contains(termino_busqueda, case=False, na=False)) |
-                (df["Serie/ Identificación"].str.contains(termino_busqueda, case=False, na=False))
+                (df[c_codigo].str.contains(termino_busqueda, case=False, na=False)) |
+                (df[c_serie].str.contains(termino_busqueda, case=False, na=False))
             ]
             
         if not res.empty:
             row = res.iloc[0]
             
-            st.success(f"📌 **BIEN:** {limpiar_val(row.get('Bien'))}")
+            val_bien = limpiar_val(row.get(col_map.get('nombre'), '-'))
+            val_bodega = limpiar_val(row.get(col_map.get('bodega'), '-'))
             
-            ubicacion_bodega = limpiar_val(row.get('Ubicación de Bodega'))
-            st.info(f"🏢 **BODEGA:** {ubicacion_bodega}")
+            st.success(f"📌 **BIEN:** {val_bien}")
+            st.info(f"🏢 **BODEGA:** {val_bodega}")
             
-            val_contable = row.get('Valor Contable', '-')
+            val_contable = row.get(col_map.get('valor'), '-')
             val_contable_clean = limpiar_val(val_contable)
             if val_contable_clean not in ["-", "."]:
                 try:
@@ -349,25 +379,24 @@ if df is not None:
             else:
                 val_contable_fmt = "-"
 
-            # Pestañas compactas
             tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
             
             with tab1:
-                st.write(f"**Código del Bien:** {limpiar_val(row.get('Código del Bien'))}")
-                st.write(f"**Código Anterior:** {limpiar_val(row.get('Código Anterior'))}")
-                st.write(f"**Marca:** {limpiar_val(row.get('Marca/ Otros'))}")
-                st.write(f"**Modelo:** {limpiar_val(row.get('Modelo/ Características'))}")
-                st.write(f"**Serie:** {limpiar_val(row.get('Serie/ Identificación'))}")
+                st.write(f"**Código del Bien:** {limpiar_val(row.get(c_codigo))}")
+                st.write(f"**Código Anterior:** {limpiar_val(row.get(c_anterior))}")
+                st.write(f"**Marca:** {limpiar_val(row.get(col_map.get('marca'), '-'))}")
+                st.write(f"**Modelo:** {limpiar_val(row.get(col_map.get('modelo'), '-'))}")
+                st.write(f"**Serie:** {limpiar_val(row.get(c_serie))}")
                 st.write(f"**Valor Contable:** {val_contable_fmt}")
                 
             with tab2:
-                st.write(f"**Custodio Actual:** {limpiar_val(row.get('Custodio Actual'))}")
-                st.write(f"**Número de Cédula / RUC:** {limpiar_val(row.get('Nro de Cédula/ RUC'))}")
+                st.write(f"**Custodio Actual:** {limpiar_val(row.get(col_map.get('custodio'), '-'))}")
+                st.write(f"**Número de Cédula / RUC:** {limpiar_val(row.get(col_map.get('cedula'), '-'))}")
 
             st.divider()
             
-            pdf_bytes = generar_acta_pdf(row, fecha_archivo_str)
-            cod_bien_clean = str(row.get('Código del Bien', 'Bien')).replace('/', '_')
+            pdf_bytes = generar_acta_pdf(row, fecha_archivo_str, col_map)
+            cod_bien_clean = str(row.get(c_codigo, 'Bien')).replace('/', '_')
             fecha_nom = datetime.now().strftime("%d-%m-%Y")
             nombre_archivo_pdf = f"Acta_{cod_bien_clean}_{fecha_nom}.pdf"
 
@@ -378,7 +407,6 @@ if df is not None:
                 mime="application/pdf",
                 use_container_width=True
             )
-                
         else:
             st.error(f"❌ No se encontró ningún bien con el código: {termino_busqueda}")
 else:
