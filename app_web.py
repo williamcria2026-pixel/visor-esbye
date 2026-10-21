@@ -16,7 +16,7 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# Estilos CSS avanzados para mantener el buscador y el botón perfectamente alineados
+# Estilos CSS avanzados para mantener el buscador y la alineación responsiva
 st.markdown("""
     <style>
         .block-container {
@@ -57,7 +57,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Barra lateral limpia y optimizada
+# Barra lateral para opciones y archivos
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
@@ -68,26 +68,30 @@ with st.sidebar:
     
     if escudo_subido is not None:
         try:
-            with open("escudo.png", "wb") as f:
+            nombre_escudo_guardado = f"escudo_{escudo_subido.name}"
+            for f in os.listdir('.'):
+                if f.lower().startswith('escudo'):
+                    try: os.remove(f)
+                    except: pass
+            with open(nombre_escudo_guardado, "wb") as f:
                 f.write(escudo_subido.getbuffer())
         except Exception:
             pass
 
-# Encabezado corporativo optimizado
+# Encabezado corporativo
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Función para limpiar valores nulos o 'nan' y corregir DISENIO a DISEÑO
+# Función para limpiar valores nulos o 'nan'
 def limpiar_val(val):
     if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
         return "-"
     texto = str(val).strip()
-    texto = texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
-    return texto
+    return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para cargar archivos Excel con múltiples motores
+# Función para cargar Excel
 def cargar_excel(origen):
     for engine in ['calamine', 'openpyxl', None]:
         try:
@@ -100,14 +104,14 @@ def cargar_excel(origen):
     st.error("No se pudo procesar el archivo Excel con ningún motor disponible.")
     return None
 
-# Función inteligente para detectar el archivo de escudo
+# Función inteligente para detectar el nombre del archivo de escudo activo
 def obtener_ruta_escudo():
     for f in os.listdir('.'):
         if f.lower().startswith('escudo'):
             return f
     return None
 
-# Función para generar el PDF del Acta con la fecha actual
+# Función para generar el PDF del Acta con la Fecha de Ingreso del Bien antes del Valor Contable
 def generar_acta_pdf(row, fecha_acta_str, col_map):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -121,14 +125,12 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
     story = []
     styles = getSampleStyleSheet()
 
-    # Estilos de texto
     title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=11, leading=13, alignment=1, fontName="Helvetica-Bold")
     subtitle_style_center = ParagraphStyle('SubTitleStyleCenter', parent=styles['Normal'], fontSize=9, leading=12, alignment=1)
     acta_title = ParagraphStyle('ActaTitle', parent=styles['Heading2'], fontSize=10, leading=12, alignment=1, fontName="Helvetica-Bold")
     normal_small = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontSize=7, leading=8)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
-    # Procesamiento del escudo con fondo blanco obligatorio
     escudo_path = obtener_ruta_escudo()
     img_flowable = Paragraph("", normal_small)
     if escudo_path and os.path.exists(escudo_path):
@@ -150,7 +152,6 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
         except Exception as e:
             print(f"Error procesando escudo: {e}")
 
-    # 1. Encabezado institucional en Tabla
     header_text_elements = [
         Paragraph("MINISTERIO DE ECONOMÍA Y FINANZAS", title_style),
         Paragraph("176-9999-0000-UNIVERSIDAD TÉCNICA DE AMBATO - PLANTA CENTRAL", subtitle_style_center),
@@ -173,20 +174,20 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
     story.append(Paragraph(f"<b>FECHA:</b> {fecha_acta_str}", normal_small))
     story.append(Spacer(1, 4))
 
-    # 2. Tabla de Datos Dinámica
-    col_widths = [55, 55, 120, 65, 55, 75, 90, 40, 50, 50, 30, 55]
+    col_widths = [55, 55, 115, 60, 50, 70, 85, 40, 45, 45, 30, 55, 55]
     headers = [
         Paragraph("Código Bien", header_table),
         Paragraph("Código Anterior", header_table),
         Paragraph("Nombre Bien", header_table),
         Paragraph("Serie", header_table),
         Paragraph("Modelo", header_table),
-        Paragraph("Marca/Raza/Otros", header_table),
+        Paragraph("Marca/Otros", header_table),
         Paragraph("Bodega", header_table),
         Paragraph("Tipo Reg.", header_table),
-        Paragraph("Fecha Ingreso", header_table),
-        Paragraph("Fecha Asignación", header_table),
+        Paragraph("F. Ingreso", header_table),
+        Paragraph("F. Asignación", header_table),
         Paragraph("Cant.", header_table),
+        Paragraph("Fecha Ingreso del Bien", header_table),
         Paragraph("Valor Contable", header_table)
     ]
 
@@ -201,6 +202,8 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
     else:
         val_contable_str = "-"
 
+    val_f_ingreso = limpiar_val(row.get(col_map.get('fecha_ingreso'), '-'))
+
     data_row = [
         Paragraph(limpiar_val(row.get(col_map.get('codigo'))), normal_small),
         Paragraph(limpiar_val(row.get(col_map.get('anterior'))), normal_small),
@@ -213,12 +216,13 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
         Paragraph("-", normal_small),
         Paragraph(fecha_acta_str, normal_small),
         Paragraph("1", normal_small),
+        Paragraph(val_f_ingreso, normal_small),
         Paragraph(val_contable_str, normal_small)
     ]
 
     total_row = [
         Paragraph("<b>TOTALES:</b>", normal_small),
-        "", "", "", "", "", "", "", "", "",
+        "", "", "", "", "", "", "", "", "", "",
         Paragraph("<b>1</b>", normal_small),
         Paragraph(f"<b>{val_contable_str}</b>", normal_small)
     ]
@@ -230,13 +234,12 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('SPAN', (0, 2), (9, 2)),
+        ('SPAN', (0, 2), (10, 2)),
         ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#F3F4F6')),
     ]))
     story.append(t)
     story.append(Spacer(1, 25))
 
-    # 3. Sección de Firmas
     custodio_dinamico = limpiar_val(row.get(col_map.get('custodio')))
 
     cell_entrega = [
@@ -270,17 +273,24 @@ def generar_acta_pdf(row, fecha_acta_str, col_map):
 archivos_excel = [f for f in os.listdir('.') if f.endswith('.xlsx') or f.endswith('.xls')]
 
 df = None
-# Fijar estrictamente la fecha actual para el reporte y las actas
-fecha_archivo_str = datetime.now().strftime("%d/%m/%Y")
+nombre_excel_activo = "Ninguno"
+fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
 
 if archivo_subido is not None:
     df = cargar_excel(archivo_subido)
+    nombre_excel_activo = archivo_subido.name
 elif archivos_excel:
     archivo_local = archivos_excel[0]
     df = cargar_excel(archivo_local)
+    nombre_excel_activo = archivo_local
+
+ruta_escudo_activa = obtener_ruta_escudo()
+if ruta_escudo_activa:
+    nombre_escudo_activo = ruta_escudo_activa.replace("escudo_", "")
+else:
+    nombre_escudo_activo = "Sin escudo"
 
 if df is not None:
-    # Limpieza y normalización robusta de nombres de columnas
     df.columns = df.columns.astype(str).str.strip()
     
     col_map = {}
@@ -300,6 +310,8 @@ if df is not None:
             col_map['custodio'] = col
         elif 'cedula' in col_lower or 'ruc' in col_lower:
             col_map['cedula'] = col
+        elif ('fecha' in col_lower or 'ingreso' in col_lower or 'alta' in col_lower) and 'asigna' not in col_lower:
+            col_map['fecha_ingreso'] = col
         elif 'valor' in col_lower or 'contable' in col_lower:
             col_map['valor'] = col
         elif 'marca' in col_lower or 'raza' in col_lower or 'otros' in col_lower:
@@ -314,8 +326,13 @@ if df is not None:
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
 
-    # Bloque de Fecha actual y Título del buscador
-    st.markdown(f"<p style='color: #CBD5E1; font-size: 0.85rem; margin-bottom: 4px;'>📅 Base actualizada: <b>{fecha_archivo_str}</b></p>", unsafe_allow_html=True)
+    st.markdown(
+        f"<p style='color: #CBD5E1; font-size: 0.82rem; margin-bottom: 6px; line-height: 1.4;'>"
+        f"📄 Reporte: <b style='color: #93C5FD;'>{nombre_excel_activo}</b> &nbsp;|&nbsp; "
+        f"🛡️ Escudo: <b style='color: #93C5FD;'>{nombre_escudo_activo}</b>"
+        f"</p>", 
+        unsafe_allow_html=True
+    )
     st.markdown("<p style='color: #FFFFFF; font-weight: bold; font-size: 0.95rem; margin-bottom: 2px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
 
     if "busqueda_val" not in st.session_state:
@@ -361,6 +378,7 @@ if df is not None:
             
             val_bien = limpiar_val(row.get(col_map.get('nombre'), '-'))
             val_bodega = limpiar_val(row.get(col_map.get('bodega'), '-'))
+            val_fecha_ingreso = limpiar_val(row.get(col_map.get('fecha_ingreso'), '-'))
             
             st.success(f"📌 **BIEN:** {val_bien}")
             st.info(f"🏢 **BODEGA:** {val_bodega}")
@@ -383,6 +401,7 @@ if df is not None:
                 st.write(f"**Marca:** {limpiar_val(row.get(col_map.get('marca'), '-'))}")
                 st.write(f"**Modelo:** {limpiar_val(row.get(col_map.get('modelo'), '-'))}")
                 st.write(f"**Serie:** {limpiar_val(row.get(c_serie))}")
+                st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}")
                 st.write(f"**Valor Contable:** {val_contable_fmt}")
                 
             with tab2:
@@ -391,7 +410,7 @@ if df is not None:
 
             st.divider()
             
-            pdf_bytes = generar_acta_pdf(row, fecha_archivo_str, col_map)
+            pdf_bytes = generar_acta_pdf(row, fecha_acta_actual, col_map)
             cod_bien_clean = str(row.get(c_codigo, 'Bien')).replace('/', '_')
             fecha_nom = datetime.now().strftime("%d-%m-%Y")
             nombre_archivo_pdf = f"Acta_{cod_bien_clean}_{fecha_nom}.pdf"
