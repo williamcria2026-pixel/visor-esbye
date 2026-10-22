@@ -71,7 +71,7 @@ def cargar_excel(origen):
             continue
     return None
 
-# Ruta fija del escudo institucional integrado en el repositorio
+# Detección segura y directa del escudo institucional
 def obtener_ruta_escudo():
     if os.path.exists("escudo.png"):
         return "escudo.png"
@@ -166,7 +166,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para generar el PDF oficial manteniendo el formato exacto
+# Función para generar el PDF oficial con celdas centradas y totales justificados a la derecha
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -183,11 +183,14 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=11, leading=13, alignment=1, fontName="Helvetica-Bold")
     subtitle_style_center = ParagraphStyle('SubTitleStyleCenter', parent=styles['Normal'], fontSize=9, leading=12, alignment=1)
     acta_title = ParagraphStyle('ActaTitle', parent=styles['Heading2'], fontSize=10, leading=12, alignment=1, fontName="Helvetica-Bold")
-    normal_small = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontSize=7, leading=8)
+    
+    # Estilos de celdas: Centrados para el contenido y alineado a la derecha para Totales
+    normal_center = ParagraphStyle('NormalCenter', parent=styles['Normal'], fontSize=7, leading=8, alignment=1)
+    totales_right = ParagraphStyle('TotalesRight', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=2)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
     escudo_path = obtener_ruta_escudo()
-    img_flowable = Paragraph("", normal_small)
+    img_flowable = Paragraph("", normal_center)
     if escudo_path and os.path.exists(escudo_path):
         try:
             with PILImage.open(escudo_path) as pil_img:
@@ -226,7 +229,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     story.append(header_table_obj)
     story.append(Spacer(1, 4))
 
-    story.append(Paragraph(f"<b>FECHA:</b> {fecha_acta_str}", normal_small))
+    story.append(Paragraph(f"<b>FECHA:</b> {fecha_acta_str}", normal_center))
     story.append(Spacer(1, 4))
 
     col_widths = [55, 55, 120, 65, 55, 75, 90, 40, 50, 50, 30, 55]
@@ -256,33 +259,35 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     else:
         val_contable_str = "-"
 
+    # Fila de datos con celdas centradas
     data_row = [
-        Paragraph(limpiar_val(row.get(col_map.get('codigo'), '-')), normal_small),
-        Paragraph(limpiar_val(row.get(col_map.get('anterior'), '-')), normal_small),
-        Paragraph(limpiar_val(row.get(col_map.get('nombre'), '-')), normal_small),
-        Paragraph(limpiar_val(row.get(col_map.get('serie'), '-')), normal_small),
-        Paragraph(limpiar_val(row.get(col_map.get('modelo'), '-')), normal_small),
-        Paragraph(limpiar_val(row.get(col_map.get('marca'), '-')), normal_small),
-        Paragraph(limpiar_val(row.get(col_map.get('bodega'), '-')), normal_small),
-        Paragraph("BLD", normal_small),
-        Paragraph(val_f_ingreso_pdf, normal_small),
-        Paragraph(fecha_acta_str, normal_small),
-        Paragraph("1", normal_small),
-        Paragraph(val_contable_str, normal_small)
+        Paragraph(limpiar_val(row.get(col_map.get('codigo'), '-')), normal_center),
+        Paragraph(limpiar_val(row.get(col_map.get('anterior'), '-')), normal_center),
+        Paragraph(limpiar_val(row.get(col_map.get('nombre'), '-')), normal_center),
+        Paragraph(limpiar_val(row.get(col_map.get('serie'), '-')), normal_center),
+        Paragraph(limpiar_val(row.get(col_map.get('modelo'), '-')), normal_center),
+        Paragraph(limpiar_val(row.get(col_map.get('marca'), '-')), normal_center),
+        Paragraph(limpiar_val(row.get(col_map.get('bodega'), '-')), normal_center),
+        Paragraph("BLD", normal_center),
+        Paragraph(val_f_ingreso_pdf, normal_center),
+        Paragraph(fecha_acta_str, normal_center),
+        Paragraph("1", normal_center),
+        Paragraph(val_contable_str, normal_center)
     ]
 
+    # Fila de totales: "TOTALES:" justificado a la derecha en el espacio combinado
     total_row = [
-        Paragraph("<b>TOTALES:</b>", normal_small),
+        Paragraph("<b>TOTALES:</b>", totales_right),
         "", "", "", "", "", "", "", "", "",
-        Paragraph("<b>1</b>", normal_small),
-        Paragraph(f"<b>{val_contable_str}</b>", normal_small)
+        Paragraph("<b>1</b>", normal_center),
+        Paragraph(f"<b>{val_contable_str}</b>", normal_center)
     ]
 
     table_data = [headers, data_row, total_row]
     t = Table(table_data, colWidths=col_widths)
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E3A8A')),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('SPAN', (0, 2), (9, 2)),
@@ -327,19 +332,6 @@ if df is not None:
     
     col_map = {}
     col_fecha_ingreso_real = None
-
-    # MAPEO ABSOLUTO Y EXACTO POR POSICIÓN DE COLUMNAS (Iniciando desde 1):
-    # Columna A (1) = Código del Bien -> Python índice 0
-    # Columna B (2) = Código Anterior -> Python índice 1
-    # Columna F (6) = Bien -> Python índice 5
-    # Columna G (7) = Serie / Identificación -> Python índice 6
-    # Columna H (8) = Modelo / Características -> Python índice 7
-    # Columna I (9) = Marca / Otros -> Python índice 8
-    # Columna U (21) = Bodega -> Python índice 20
-    # Columna X (24) = Nro de Cédula / RUC -> Python índice 23
-    # Columna Y (25) = Custodio Actual -> Python índice 24
-    # Columna AL (38) = Fecha de Ingreso -> Python índice 37
-    # Columna AP (42) = Valor Contable -> Python índice 41
 
     if len(cols) > 0: col_map['codigo'] = cols[0]
     if len(cols) > 1: col_map['anterior'] = cols[1]
