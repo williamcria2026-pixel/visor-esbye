@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import os
-import time
 from datetime import datetime
 import re
 import io
@@ -58,33 +57,47 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Función para cargar Excel de forma robusta con múltiples motores
+# Índices exactos basados en columnas iniciando desde 1 (Excel Columna - 1)
+# A=1 (idx 0), B=2 (idx 1), F=6 (idx 5), G=7 (idx 6), H=8 (idx 7), I=9 (idx 8), 
+# U=21 (idx 20), X=24 (idx 23), Y=25 (idx 24), AL=38 (idx 37), AP=42 (idx 41)
+INDICES_NECESARIOS = [0, 1, 5, 6, 7, 8, 20, 23, 24, 37, 41]
+
+# Función para cargar y optimizar el Excel de forma ultrarrápida
 def cargar_excel(origen):
     for engine in ['calamine', 'openpyxl', None]:
         try:
             if engine:
-                df_temp = pd.read_excel(origen, engine=engine)
+                df_temp = pd.read_excel(origen, engine=engine, usecols=INDICES_NECESARIOS)
             else:
-                df_temp = pd.read_excel(origen)
+                df_temp = pd.read_excel(origen, usecols=INDICES_NECESARIOS)
             if df_temp is not None and not df_temp.empty:
                 return df_temp
         except Exception:
-            continue
+            try:
+                if engine:
+                    df_temp = pd.read_excel(origen, engine=engine)
+                else:
+                    df_temp = pd.read_excel(origen)
+                if df_temp is not None and not df_temp.empty:
+                    return df_temp
+            except:
+                continue
     return None
 
-# Función inteligente y flexible para detectar cualquier escudo institucional
+# Ruta fija del escudo institucional integrado en el repositorio
 def obtener_ruta_escudo():
+    if os.path.exists("escudo.png"):
+        return "escudo.png"
     for f in os.listdir('.'):
         if f.lower().startswith('escudo') and f.lower().endswith(('png', 'jpg', 'jpeg')):
             return f
     return None
 
-# Barra lateral para opciones y archivos
+# Barra lateral limpia solo para subir nuevos reportes si se requiere
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
     
-    # GUARDADO PERMANENTE DEL REPORTE SIN BUCLES DE TITILEO
     if archivo_subido is not None:
         try:
             with open("reporte_activo.xlsx", "wb") as f:
@@ -95,32 +108,13 @@ with st.sidebar:
         except Exception as e:
             st.error(f"Error al guardar archivo: {e}")
 
-    st.divider()
-    st.subheader("🛡️ Escudo Institucional")
-    escudo_subido = st.file_uploader("Subir imagen del escudo", type=["png", "jpg", "jpeg"], key="uploader_escudo")
-    
-    if escudo_subido is not None:
-        try:
-            # Normalizamos el nombre guardado para que comience con 'escudo_' y mantenga su extensión real
-            ext = escudo_subido.name.split('.')[-1].lower()
-            nombre_escudo_guardado = f"escudo.{ext}"
-            for f in os.listdir('.'):
-                if f.lower().startswith('escudo') and f != nombre_escudo_guardado:
-                    try: os.remove(f)
-                    except: pass
-            with open(nombre_escudo_guardado, "wb") as f:
-                f.write(escudo_subido.getbuffer())
-            st.success("¡Escudo institucional actualizado!")
-        except Exception as e:
-            st.error(f"Error al guardar el escudo: {e}")
-
 # Encabezado corporativo
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# RECUPERACIÓN SEGURA DEL ARCHIVO Y NOMBRE DESDE EL DISCO
+# Recuperación segura del archivo y nombre
 df = None
 display_reporte = "Ninguno"
 
@@ -143,10 +137,14 @@ if os.path.exists("reporte_activo.xlsx"):
         except:
             pass
 else:
-    archivos_excel = [f for f in os.listdir('.') if (f.endswith('.xlsx') or f.endswith('.xls')) and not f.startswith('escudo') and f != 'nombre_reporte.txt']
-    if archivos_excel:
-        df = cargar_excel(archivos_excel[0])
-        if df is not None:
+    # Respaldo automático con informe.xlsx si existe en el repositorio
+    if os.path.exists("informe.xlsx"):
+        df = cargar_excel("informe.xlsx")
+        display_reporte = "informe.xlsx"
+    else:
+        archivos_excel = [f for f in os.listdir('.') if (f.endswith('.xlsx') or f.endswith('.xls')) and not f.startswith('escudo') and f != 'nombre_reporte.txt']
+        if archivos_excel:
+            df = cargar_excel(archivos_excel[0])
             display_reporte = archivos_excel[0]
 
 fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
@@ -337,28 +335,12 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer.seek(0)
     return buffer
 
-ruta_escudo_activa = obtener_ruta_escudo()
-nombre_escudo_activo = ruta_escudo_activa if ruta_escudo_activa else "Sin escudo"
-
 if df is not None:
     df.columns = df.columns.astype(str).str.strip()
     cols = list(df.columns)
     
     col_map = {}
     col_fecha_ingreso_real = None
-
-    # MAPEO EXACTO BASADO EN LA NUMERACIÓN DE COLUMNAS DE SU EXCEL (Iniciando desde 1):
-    # Columna A (1) = Código del Bien -> Python índice 0
-    # Columna B (2) = Código Anterior -> Python índice 1
-    # Columna F (6) = Bien -> Python índice 5
-    # Columna G (7) = Serie / Identificación -> Python índice 6
-    # Columna H (8) = Modelo / Características -> Python índice 7
-    # Columna I (9) = Marca / Otros -> Python índice 8
-    # Columna U (21) = Bodega -> Python índice 20
-    # Columna X (24) = Nro de Cédula / RUC -> Python índice 23
-    # Columna Y (25) = Custodio Actual -> Python índice 24
-    # Columna AL (38) = Fecha de Ingreso -> Python índice 37
-    # Columna AP (42) = Valor Contable -> Python índice 41
 
     for idx, col in enumerate(cols):
         c_low = str(col).lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
@@ -386,7 +368,6 @@ if df is not None:
         elif idx == 41 or 'valor contable' in c_low or 'contable' in c_low:
             col_map['valor'] = col
 
-    # Respaldos directos por índice exacto basado en su estructura
     if 'codigo' not in col_map and len(cols) > 0: col_map['codigo'] = cols[0]
     if 'anterior' not in col_map and len(cols) > 1: col_map['anterior'] = cols[1]
     if 'nombre' not in col_map and len(cols) > 5: col_map['nombre'] = cols[5]
@@ -403,10 +384,10 @@ if df is not None:
     c_serie = col_map.get('serie', cols[6] if len(cols) > 6 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
+    # Interfaz limpia mostrando únicamente el nombre del reporte activo
     st.markdown(
-        f"<div style='background-color: #1E293B; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px;'>"
-        f"<span style='color: #CBD5E1; font-size: 0.82rem;'>📄 Reporte: <b style='color: #93C5FD;'>{display_reporte}</b></span><br>"
-        f"<span style='color: #CBD5E1; font-size: 0.82rem;'>🛡️ Escudo: <b style='color: #93C5FD;'>{nombre_escudo_activo}</b></span>"
+        f"<div style='background-color: #1E293B; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; text-align: center;'>"
+        f"<span style='color: #CBD5E1; font-size: 0.88rem;'>📄 Reporte Activo: <b style='color: #93C5FD;'>{display_reporte}</b></span>"
         f"</div>", 
         unsafe_allow_html=True
     )
