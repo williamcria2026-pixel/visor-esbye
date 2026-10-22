@@ -57,31 +57,18 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Índices exactos basados en columnas iniciando desde 1 (Excel Columna - 1)
-# A=1 (idx 0), B=2 (idx 1), F=6 (idx 5), G=7 (idx 6), H=8 (idx 7), I=9 (idx 8), 
-# U=21 (idx 20), X=24 (idx 23), Y=25 (idx 24), AL=38 (idx 37), AP=42 (idx 41)
-INDICES_NECESARIOS = [0, 1, 5, 6, 7, 8, 20, 23, 24, 37, 41]
-
-# Función para cargar y optimizar el Excel de forma ultrarrápida
+# Función para cargar el Excel completo asegurando lectura limpia sin alterar índices
 def cargar_excel(origen):
     for engine in ['calamine', 'openpyxl', None]:
         try:
             if engine:
-                df_temp = pd.read_excel(origen, engine=engine, usecols=INDICES_NECESARIOS)
+                df_temp = pd.read_excel(origen, engine=engine)
             else:
-                df_temp = pd.read_excel(origen, usecols=INDICES_NECESARIOS)
+                df_temp = pd.read_excel(origen)
             if df_temp is not None and not df_temp.empty:
                 return df_temp
         except Exception:
-            try:
-                if engine:
-                    df_temp = pd.read_excel(origen, engine=engine)
-                else:
-                    df_temp = pd.read_excel(origen)
-                if df_temp is not None and not df_temp.empty:
-                    return df_temp
-            except:
-                continue
+            continue
     return None
 
 # Ruta fija del escudo institucional integrado en el repositorio
@@ -93,7 +80,7 @@ def obtener_ruta_escudo():
             return f
     return None
 
-# Barra lateral limpia solo para subir nuevos reportes si se requiere
+# Barra lateral limpia para subir nuevos reportes
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
@@ -137,7 +124,6 @@ if os.path.exists("reporte_activo.xlsx"):
         except:
             pass
 else:
-    # Respaldo automático con informe.xlsx si existe en el repositorio
     if os.path.exists("informe.xlsx"):
         df = cargar_excel("informe.xlsx")
         display_reporte = "informe.xlsx"
@@ -342,43 +328,30 @@ if df is not None:
     col_map = {}
     col_fecha_ingreso_real = None
 
-    for idx, col in enumerate(cols):
-        c_low = str(col).lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').strip()
-        
-        if idx == 37 or 'fecha de ingreso' in c_low:
-            col_fecha_ingreso_real = col
-        elif idx == 0 or 'codigo del bien' in c_low or c_low == 'codigo bien':
-            col_map['codigo'] = col
-        elif idx == 1 or 'codigo anterior' in c_low:
-            col_map['anterior'] = col
-        elif idx == 5 or c_low == 'bien' or 'nombre' in c_low:
-            col_map['nombre'] = col
-        elif idx == 6 or 'serie' in c_low or 'identificacion' in c_low:
-            col_map['serie'] = col
-        elif idx == 7 or 'modelo' in c_low or 'caracteristicas' in c_low:
-            col_map['modelo'] = col
-        elif idx == 8 or 'marca' in c_low or 'otros' in c_low:
-            col_map['marca'] = col
-        elif idx == 20 or 'bodega' in c_low:
-            col_map['bodega'] = col
-        elif idx == 23 or 'cedula' in c_low or 'ruc' in c_low:
-            col_map['cedula'] = col
-        elif idx == 24 or 'custodio' in c_low:
-            col_map['custodio'] = col
-        elif idx == 41 or 'valor contable' in c_low or 'contable' in c_low:
-            col_map['valor'] = col
+    # MAPEO ABSOLUTO Y EXACTO POR POSICIÓN DE COLUMNAS (Iniciando desde 1):
+    # Columna A (1) = Código del Bien -> Python índice 0
+    # Columna B (2) = Código Anterior -> Python índice 1
+    # Columna F (6) = Bien -> Python índice 5
+    # Columna G (7) = Serie / Identificación -> Python índice 6
+    # Columna H (8) = Modelo / Características -> Python índice 7
+    # Columna I (9) = Marca / Otros -> Python índice 8
+    # Columna U (21) = Bodega -> Python índice 20
+    # Columna X (24) = Nro de Cédula / RUC -> Python índice 23
+    # Columna Y (25) = Custodio Actual -> Python índice 24
+    # Columna AL (38) = Fecha de Ingreso -> Python índice 37
+    # Columna AP (42) = Valor Contable -> Python índice 41
 
-    if 'codigo' not in col_map and len(cols) > 0: col_map['codigo'] = cols[0]
-    if 'anterior' not in col_map and len(cols) > 1: col_map['anterior'] = cols[1]
-    if 'nombre' not in col_map and len(cols) > 5: col_map['nombre'] = cols[5]
-    if 'serie' not in col_map and len(cols) > 6: col_map['serie'] = cols[6]
-    if 'modelo' not in col_map and len(cols) > 7: col_map['modelo'] = cols[7]
-    if 'marca' not in col_map and len(cols) > 8: col_map['marca'] = cols[8]
-    if 'bodega' not in col_map and len(cols) > 20: col_map['bodega'] = cols[20]
-    if 'cedula' not in col_map and len(cols) > 23: col_map['cedula'] = cols[23]
-    if 'custodio' not in col_map and len(cols) > 24: col_map['custodio'] = cols[24]
-    if not col_fecha_ingreso_real and len(cols) > 37: col_fecha_ingreso_real = cols[37]
-    if 'valor' not in col_map and len(cols) > 41: col_map['valor'] = cols[41]
+    if len(cols) > 0: col_map['codigo'] = cols[0]
+    if len(cols) > 1: col_map['anterior'] = cols[1]
+    if len(cols) > 5: col_map['nombre'] = cols[5]
+    if len(cols) > 6: col_map['serie'] = cols[6]
+    if len(cols) > 7: col_map['modelo'] = cols[7]
+    if len(cols) > 8: col_map['marca'] = cols[8]
+    if len(cols) > 20: col_map['bodega'] = cols[20]
+    if len(cols) > 23: col_map['cedula'] = cols[23]
+    if len(cols) > 24: col_map['custodio'] = cols[24]
+    if len(cols) > 37: col_fecha_ingreso_real = cols[37]
+    if len(cols) > 41: col_map['valor'] = cols[41]
 
     c_codigo = col_map.get('codigo', cols[0])
     c_serie = col_map.get('serie', cols[6] if len(cols) > 6 else cols[0])
