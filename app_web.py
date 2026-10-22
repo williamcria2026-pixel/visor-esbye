@@ -166,7 +166,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para generar el PDF oficial con celdas centradas y totales justificados a la derecha
+# Función para generar el PDF oficial con fecha a la izquierda y escudo garantizado
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -184,27 +184,18 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     subtitle_style_center = ParagraphStyle('SubTitleStyleCenter', parent=styles['Normal'], fontSize=9, leading=12, alignment=1)
     acta_title = ParagraphStyle('ActaTitle', parent=styles['Heading2'], fontSize=10, leading=12, alignment=1, fontName="Helvetica-Bold")
     
-    # Estilos de celdas: Centrados para el contenido y alineado a la derecha para Totales
+    # Estilos de celdas y fechas
+    normal_left = ParagraphStyle('NormalLeft', parent=styles['Normal'], fontSize=7, leading=8, alignment=0)
     normal_center = ParagraphStyle('NormalCenter', parent=styles['Normal'], fontSize=7, leading=8, alignment=1)
     totales_right = ParagraphStyle('TotalesRight', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=2)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
+    # Carga directa y blindada del escudo institucional
     escudo_path = obtener_ruta_escudo()
     img_flowable = Paragraph("", normal_center)
     if escudo_path and os.path.exists(escudo_path):
         try:
-            with PILImage.open(escudo_path) as pil_img:
-                bg = PILImage.new("RGB", pil_img.size, (255, 255, 255))
-                if pil_img.mode == "RGBA":
-                    bg.paste(pil_img, mask=pil_img.split()[3])
-                else:
-                    bg.paste(pil_img)
-                
-                img_buffer = io.BytesIO()
-                bg.save(img_buffer, format='PNG')
-                img_buffer.seek(0)
-            
-            img_escudo = RLImage(img_buffer, width=0.65*inch, height=0.65*inch)
+            img_escudo = RLImage(escudo_path, width=0.65*inch, height=0.65*inch)
             img_escudo.hAlign = 'LEFT'
             img_flowable = img_escudo
         except Exception as e:
@@ -229,7 +220,8 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     story.append(header_table_obj)
     story.append(Spacer(1, 4))
 
-    story.append(Paragraph(f"<b>FECHA:</b> {fecha_acta_str}", normal_center))
+    # Fecha alineada estrictamente a la izquierda
+    story.append(Paragraph(f"<b>FECHA:</b> {fecha_acta_str}", normal_left))
     story.append(Spacer(1, 4))
 
     col_widths = [55, 55, 120, 65, 55, 75, 90, 40, 50, 50, 30, 55]
@@ -275,7 +267,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
         Paragraph(val_contable_str, normal_center)
     ]
 
-    # Fila de totales: "TOTALES:" justificado a la derecha en el espacio combinado
+    # Fila de totales: "TOTALES:" justificado a la derecha
     total_row = [
         Paragraph("<b>TOTALES:</b>", totales_right),
         "", "", "", "", "", "", "", "", "",
