@@ -71,14 +71,13 @@ def cargar_excel(origen):
             continue
     return None
 
-# Detección robusta con ruta absoluta para garantizar que el PDF siempre encuentre el escudo
+# Detección simple y directa del escudo (la que funcionaba originalmente)
 def obtener_ruta_escudo():
-    ruta_candidata = os.path.abspath("escudo.png")
-    if os.path.exists(ruta_candidata):
-        return ruta_candidata
+    if os.path.exists("escudo.png"):
+        return "escudo.png"
     for f in os.listdir('.'):
         if f.lower().startswith('escudo') and f.lower().endswith(('png', 'jpg', 'jpeg')):
-            return os.path.abspath(f)
+            return f
     return None
 
 # Barra lateral con opciones y gestión opcional del escudo
@@ -181,7 +180,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para generar el PDF oficial con espacios seguros entre el símbolo $ y el valor
+# Función para generar el PDF oficial
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -204,6 +203,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     totales_right = ParagraphStyle('TotalesRight', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=2)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
+    # Inserción limpia del escudo
     escudo_path = obtener_ruta_escudo()
     img_flowable = Paragraph("", normal_center)
     if escudo_path and os.path.exists(escudo_path):
@@ -257,7 +257,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     if val_contable_clean not in ["-", "."]:
         try:
             val_contable_num = float(val_contable_clean.replace('$', '').replace(',', ''))
-            # Espaciado limpio y seguro con dos espacios en blanco de texto
+            # Espaciado exacto entre el símbolo de dólar y la cifra con dos espacios en blanco
             val_contable_str = f"$  {val_contable_num:,.2f}"
         except:
             val_contable_str = val_contable_clean
