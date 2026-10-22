@@ -97,7 +97,6 @@ with st.sidebar:
             st.error(f"Error al guardar archivo: {e}")
 
     st.divider()
-    # Expander discreto para gestionar el escudo si se requiere en el futuro sin ensuciar la UI
     with st.expander("🛡️ Configuración del Escudo"):
         escudo_subido = st.file_uploader("Actualizar archivo escudo.png", type=["png", "jpg", "jpeg"], key="uploader_escudo")
         if escudo_subido is not None:
@@ -114,12 +113,13 @@ st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h
 st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Recuperación segura del archivo y nombre
+# Recuperación segura del archivo con indicador de carga profesional (Spinner)
 df = None
 display_reporte = "Ninguno"
 
 if os.path.exists("reporte_activo.xlsx"):
-    df = cargar_excel("reporte_activo.xlsx")
+    with st.spinner("📂 Cargando y procesando reporte institucional..."):
+        df = cargar_excel("reporte_activo.xlsx")
     if df is not None:
         if os.path.exists("nombre_reporte.txt"):
             try:
@@ -138,12 +138,14 @@ if os.path.exists("reporte_activo.xlsx"):
             pass
 else:
     if os.path.exists("informe.xlsx"):
-        df = cargar_excel("informe.xlsx")
+        with st.spinner("📂 Cargando reporte predeterminado..."):
+            df = cargar_excel("informe.xlsx")
         display_reporte = "informe.xlsx"
     else:
         archivos_excel = [f for f in os.listdir('.') if (f.endswith('.xlsx') or f.endswith('.xls')) and not f.startswith('escudo') and f != 'nombre_reporte.txt']
         if archivos_excel:
-            df = cargar_excel(archivos_excel[0])
+            with st.spinner("📂 Cargando reporte detectado..."):
+                df = cargar_excel(archivos_excel[0])
             display_reporte = archivos_excel[0]
 
 fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
@@ -179,7 +181,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para generar el PDF oficial con fecha a la izquierda, celdas centradas, totales a la derecha y ruta absoluta de escudo
+# Función para generar el PDF oficial con fecha a la izquierda, celdas centradas y TOTAL a la derecha
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -197,13 +199,11 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     subtitle_style_center = ParagraphStyle('SubTitleStyleCenter', parent=styles['Normal'], fontSize=9, leading=12, alignment=1)
     acta_title = ParagraphStyle('ActaTitle', parent=styles['Heading2'], fontSize=10, leading=12, alignment=1, fontName="Helvetica-Bold")
     
-    # Estilos alineados requeridos
     normal_left = ParagraphStyle('NormalLeft', parent=styles['Normal'], fontSize=7, leading=8, alignment=0)
     normal_center = ParagraphStyle('NormalCenter', parent=styles['Normal'], fontSize=7, leading=8, alignment=1)
     totales_right = ParagraphStyle('TotalesRight', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=2)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
-    # Inserción segura del escudo mediante ruta absoluta
     escudo_path = obtener_ruta_escudo()
     img_flowable = Paragraph("", normal_center)
     if escudo_path and os.path.exists(escudo_path):
@@ -233,7 +233,6 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     story.append(header_table_obj)
     story.append(Spacer(1, 4))
 
-    # Fecha alineada estrictamente a la izquierda
     story.append(Paragraph(f"<b>FECHA:</b> {fecha_acta_str}", normal_left))
     story.append(Spacer(1, 4))
 
@@ -264,7 +263,6 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     else:
         val_contable_str = "-"
 
-    # Fila de datos con contenido estrictamente centrado
     data_row = [
         Paragraph(limpiar_val(row.get(col_map.get('codigo'), '-')), normal_center),
         Paragraph(limpiar_val(row.get(col_map.get('anterior'), '-')), normal_center),
@@ -280,9 +278,8 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
         Paragraph(val_contable_str, normal_center)
     ]
 
-    # Fila de totales: "TOTALES:" alineado a la derecha
     total_row = [
-        Paragraph("<b>TOTALES:</b>", totales_right),
+        Paragraph("<b>TOTAL:</b>", totales_right),
         "", "", "", "", "", "", "", "", "",
         Paragraph("<b>1</b>", normal_center),
         Paragraph(f"<b>{val_contable_str}</b>", normal_center)
@@ -354,7 +351,6 @@ if df is not None:
     c_serie = col_map.get('serie', cols[6] if len(cols) > 6 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
-    # Interfaz limpia mostrando únicamente el nombre del reporte activo
     st.markdown(
         f"<div style='background-color: #1E293B; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; text-align: center;'>"
         f"<span style='color: #CBD5E1; font-size: 0.88rem;'>📄 Reporte Activo: <b style='color: #93C5FD;'>{display_reporte}</b></span>"
@@ -417,48 +413,53 @@ if df is not None:
             elif len(row) > 37:
                 val_fecha_ingreso = limpiar_val_fecha(row.iloc[37])
             
-            st.success(f"📌 **BIEN:** {val_bien}")
-            st.info(f"🏢 **BODEGA:** {val_bodega}")
-            
-            val_contable = row.get(col_map.get('valor'), '-') if col_map.get('valor') else '-'
-            val_contable_clean = limpiar_val(val_contable)
-            if val_contable_clean not in ["-", "."]:
-                try:
-                    val_contable_fmt = f"${float(val_contable_clean.replace('$', '').replace(',', '')):,.2f}"
-                except:
-                    val_contable_fmt = val_contable_clean
-            else:
-                val_contable_fmt = "-"
-
-            tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
-            
-            with tab1:
-                st.write(f"**Código del Bien:** {limpiar_val(row.get(c_codigo, '-'))}")
-                st.write(f"**Código Anterior:** {limpiar_val(row.get(c_anterior, '-'))}")
-                st.write(f"**Marca:** {limpiar_val(row.get(col_map.get('marca'), '-'))}")
-                st.write(f"**Modelo:** {limpiar_val(row.get(col_map.get('modelo'), '-'))}")
-                st.write(f"**Serie:** {limpiar_val(row.get(c_serie, '-'))}")
-                st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}")
-                st.write(f"**Valor Contable:** {val_contable_fmt}")
+            # Mejora 4: Organización en contenedor con bordes estéticos (Card UI)
+            with st.container(border=True):
+                st.success(f"📌 **BIEN:** {val_bien}")
+                st.info(f"🏢 **BODEGA:** {val_bodega}")
                 
-            with tab2:
-                st.write(f"**Custodio Actual:** {limpiar_val(row.get(col_map.get('custodio'), '-'))}")
-                st.write(f"**Número de Cédula / RUC:** {limpiar_val(row.get(col_map.get('cedula'), '-'))}")
+                val_contable = row.get(col_map.get('valor'), '-') if col_map.get('valor') else '-'
+                val_contable_clean = limpiar_val(val_contable)
+                if val_contable_clean not in ["-", "."]:
+                    try:
+                        val_contable_fmt = f"${float(val_contable_clean.replace('$', '').replace(',', '')):,.2f}"
+                    except:
+                        val_contable_fmt = val_contable_clean
+                else:
+                    val_contable_fmt = "-"
 
-            st.divider()
-            
-            pdf_bytes = generar_acta_pdf(row, fecha_acta_actual, col_map, val_fecha_ingreso)
-            cod_bien_clean = str(row.get(c_codigo, 'Bien')).replace('/', '_')
-            fecha_nom = datetime.now().strftime("%d-%m-%Y")
-            nombre_archivo_pdf = f"Acta_{cod_bien_clean}_{fecha_nom}.pdf"
+                tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
+                
+                with tab1:
+                    st.write(f"**Código del Bien:** {limpiar_val(row.get(c_codigo, '-'))}")
+                    st.write(f"**Código Anterior:** {limpiar_val(row.get(c_anterior, '-'))}")
+                    st.write(f"**Marca:** {limpiar_val(row.get(col_map.get('marca'), '-'))}")
+                    st.write(f"**Modelo:** {limpiar_val(row.get(col_map.get('modelo'), '-'))}")
+                    st.write(f"**Serie:** {limpiar_val(row.get(c_serie, '-'))}")
+                    st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}")
+                    st.write(f"**Valor Contable:** {val_contable_fmt}")
+                    
+                with tab2:
+                    st.write(f"**Custodio Actual:** {limpiar_val(row.get(col_map.get('custodio'), '-'))}")
+                    st.write(f"**Número de Cédula / RUC:** {limpiar_val(row.get(col_map.get('cedula'), '-'))}")
 
-            st.download_button(
-                label="📄 Generar e Imprimir Acta PDF Oficial",
-                data=pdf_bytes,
-                file_name=nombre_archivo_pdf,
-                mime="application/pdf",
-                use_container_width=True
-            )
+                st.divider()
+                
+                # Mejora 3: Spinner profesional al generar el PDF
+                with st.spinner("📄 Generando documento PDF oficial..."):
+                    pdf_bytes = generar_acta_pdf(row, fecha_acta_actual, col_map, val_fecha_ingreso)
+                
+                cod_bien_clean = str(row.get(c_codigo, 'Bien')).replace('/', '_')
+                fecha_nom = datetime.now().strftime("%d-%m-%Y")
+                nombre_archivo_pdf = f"Acta_{cod_bien_clean}_{fecha_nom}.pdf"
+
+                st.download_button(
+                    label="📄 Generar e Imprimir Acta PDF Oficial",
+                    data=pdf_bytes,
+                    file_name=nombre_archivo_pdf,
+                    mime="application/pdf",
+                    use_container_width=True
+                )
         else:
             st.error(f"❌ No se encontró ningún bien con el código: {termino_busqueda}")
 else:
