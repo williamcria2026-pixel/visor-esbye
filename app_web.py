@@ -71,16 +71,17 @@ def cargar_excel(origen):
             continue
     return None
 
-# Detección segura y directa del escudo institucional
+# Detección robusta con ruta absoluta para garantizar que el PDF siempre encuentre el escudo
 def obtener_ruta_escudo():
-    if os.path.exists("escudo.png"):
-        return "escudo.png"
+    ruta_candidata = os.path.abspath("escudo.png")
+    if os.path.exists(ruta_candidata):
+        return ruta_candidata
     for f in os.listdir('.'):
         if f.lower().startswith('escudo') and f.lower().endswith(('png', 'jpg', 'jpeg')):
-            return f
+            return os.path.abspath(f)
     return None
 
-# Barra lateral limpia para subir nuevos reportes
+# Barra lateral con opciones y gestión opcional del escudo
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
@@ -94,6 +95,18 @@ with st.sidebar:
             st.success(f"Reporte '{archivo_subido.name}' cargado con éxito.")
         except Exception as e:
             st.error(f"Error al guardar archivo: {e}")
+
+    st.divider()
+    # Expander discreto para gestionar el escudo si se requiere en el futuro sin ensuciar la UI
+    with st.expander("🛡️ Configuración del Escudo"):
+        escudo_subido = st.file_uploader("Actualizar archivo escudo.png", type=["png", "jpg", "jpeg"], key="uploader_escudo")
+        if escudo_subido is not None:
+            try:
+                with open("escudo.png", "wb") as f:
+                    f.write(escudo_subido.getbuffer())
+                st.success("¡Escudo actualizado permanentemente!")
+            except Exception as e:
+                st.error(f"Error al guardar el escudo: {e}")
 
 # Encabezado corporativo
 st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -166,7 +179,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para generar el PDF oficial con fecha a la izquierda y escudo garantizado
+# Función para generar el PDF oficial con fecha a la izquierda, celdas centradas, totales a la derecha y ruta absoluta de escudo
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -184,13 +197,13 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     subtitle_style_center = ParagraphStyle('SubTitleStyleCenter', parent=styles['Normal'], fontSize=9, leading=12, alignment=1)
     acta_title = ParagraphStyle('ActaTitle', parent=styles['Heading2'], fontSize=10, leading=12, alignment=1, fontName="Helvetica-Bold")
     
-    # Estilos de celdas y fechas
+    # Estilos alineados requeridos
     normal_left = ParagraphStyle('NormalLeft', parent=styles['Normal'], fontSize=7, leading=8, alignment=0)
     normal_center = ParagraphStyle('NormalCenter', parent=styles['Normal'], fontSize=7, leading=8, alignment=1)
     totales_right = ParagraphStyle('TotalesRight', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=2)
     header_table = ParagraphStyle('HeaderTable', parent=styles['Normal'], fontSize=7, leading=8, fontName="Helvetica-Bold", alignment=1, textColor=colors.white)
 
-    # Carga directa y blindada del escudo institucional
+    # Inserción segura del escudo mediante ruta absoluta
     escudo_path = obtener_ruta_escudo()
     img_flowable = Paragraph("", normal_center)
     if escudo_path and os.path.exists(escudo_path):
@@ -251,7 +264,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     else:
         val_contable_str = "-"
 
-    # Fila de datos con celdas centradas
+    # Fila de datos con contenido estrictamente centrado
     data_row = [
         Paragraph(limpiar_val(row.get(col_map.get('codigo'), '-')), normal_center),
         Paragraph(limpiar_val(row.get(col_map.get('anterior'), '-')), normal_center),
@@ -267,7 +280,7 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
         Paragraph(val_contable_str, normal_center)
     ]
 
-    # Fila de totales: "TOTALES:" justificado a la derecha
+    # Fila de totales: "TOTALES:" alineado a la derecha
     total_row = [
         Paragraph("<b>TOTALES:</b>", totales_right),
         "", "", "", "", "", "", "", "", "",
