@@ -181,7 +181,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para generar el PDF oficial con espacios entre el signo $ y el valor
+# Función para generar el PDF oficial con espacios seguros entre el símbolo $ y el valor
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -257,8 +257,8 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     if val_contable_clean not in ["-", "."]:
         try:
             val_contable_num = float(val_contable_clean.replace('$', '').replace(',', ''))
-            # SE APLICÓ EL ESPACIADO CON DOS ESPACIOS PROTEGIDOS (&nbsp;&nbsp;)
-            val_contable_str = f"$&nbsp;&nbsp;{val_contable_num:,.2f}"
+            # Espaciado limpio y seguro con dos espacios en blanco de texto
+            val_contable_str = f"$  {val_contable_num:,.2f}"
         except:
             val_contable_str = val_contable_clean
     else:
