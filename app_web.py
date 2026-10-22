@@ -16,15 +16,18 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# CSS personalizado optimizado para pantallas móviles y alto contraste
+# CSS personalizado optimizado para eliminar espacios excesivos y solucionar la grilla en móviles
 st.markdown("""
     <style>
+        /* Reducción general de relleno en el contenedor principal */
         .block-container {
-            padding-top: 1.2rem;
-            padding-bottom: 1.0rem;
-            padding-left: 0.8rem;
-            padding-right: 0.8rem;
+            padding-top: 0.5rem !important;
+            padding-bottom: 0.8rem !important;
+            padding-left: 0.6rem !important;
+            padding-right: 0.6rem !important;
         }
+        
+        /* Ajuste responsivo para el buscador (input + botón eliminar) */
         @media (max-width: 768px) {
             div[data-testid="stHorizontalBlock"] {
                 display: flex !important;
@@ -40,55 +43,98 @@ st.markdown("""
             div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
                 flex: 0 0 55px !important;
             }
+            
+            /* Forzar a que las columnas de datos dentro de las pestañas ocupen el 100% de ancho en el celular */
+            div[data-testid="stColumn"] {
+                width: 100% !important;
+                flex: 1 1 100% !important;
+                min-width: 100% !important;
+            }
         }
+        
         div[data-testid="stTextInput"] label {
             display: none !important;
         }
         
-        /* Estilos visuales móviles dinámicos */
+        hr {
+            margin: 0.4rem 0rem !important;
+        }
+        
+        /* Estilos visuales móviles dinámicos con márgenes compactos */
+        .header-box {
+            text-align: center;
+            margin-top: 0px;
+            margin-bottom: 4px;
+        }
+        .header-title {
+            color: #38BDF8;
+            font-size: 1.35rem;
+            font-weight: bold;
+            margin: 0px 0px 2px 0px !important;
+            line-height: 1.2;
+        }
+        .header-sub {
+            color: #60A5FA;
+            font-style: italic;
+            font-weight: bold;
+            font-size: 0.80rem;
+            margin: 0px !important;
+        }
+        .card-reporte {
+            background-color: #0F172A;
+            border: 1px solid #1E293B;
+            padding: 6px 10px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            text-align: center;
+            font-size: 0.82rem;
+            color: #94A3B8;
+        }
         .card-bien {
             background-color: #064E3B;
             border-left: 5px solid #10B981;
-            padding: 10px 14px;
+            padding: 8px 12px;
             border-radius: 8px;
             color: #ECFDF5;
-            font-size: 0.92rem;
+            font-size: 0.88rem;
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
         .card-bodega {
             background-color: #1E3A8A;
             border-left: 5px solid #3B82F6;
-            padding: 10px 14px;
+            padding: 8px 12px;
             border-radius: 8px;
             color: #EFF6FF;
-            font-size: 0.90rem;
+            font-size: 0.85rem;
             font-weight: bold;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         .data-box {
             background-color: #1E293B;
             border: 1px solid #334155;
             border-radius: 8px;
-            padding: 10px;
-            margin-bottom: 8px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
         }
         .data-label {
             color: #94A3B8;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 2px;
         }
         .data-value {
             color: #F8FAFC;
-            font-size: 0.95rem;
+            font-size: 0.90rem;
             font-weight: 600;
+            word-break: break-word;
         }
         .data-highlight {
             color: #38BDF8;
-            font-size: 1.05rem;
+            font-size: 1.00rem;
             font-weight: bold;
+            word-break: break-word;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -142,10 +188,14 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Error al guardar el escudo: {e}")
 
-# Encabezado corporativo
-st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
-st.markdown("<h2 style='text-align: center; color: #38BDF8;'>BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #60A5FA; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
+# Encabezado corporativo ultrapacto sin espacios muertos
+st.markdown("""
+    <div class='header-box'>
+        <div class='header-title'>BIENES Y BODEGAS</div>
+        <div class='header-sub'>Desarrollado por: Ing. William Cisneros R.</div>
+    </div>
+""", unsafe_allow_html=True)
+
 st.divider()
 
 # Carga de datos con indicador spinner
@@ -153,7 +203,7 @@ df = None
 display_reporte = "Ninguno"
 
 if os.path.exists("reporte_activo.xlsx"):
-    with st.spinner("📂 Cargando y procesando reporte institucional..."):
+    with st.spinner("📂 Cargando reporte institucional..."):
         df = cargar_excel("reporte_activo.xlsx")
     if df is not None:
         if os.path.exists("nombre_reporte.txt"):
@@ -216,7 +266,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para la generación del PDF oficial con espacio entre $ y la cifra
+# Función para la generación del PDF oficial
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -397,13 +447,15 @@ if df is not None:
     c_serie = col_map.get('serie', cols[6] if len(cols) > 6 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
+    # Nombre de reporte compacto
     st.markdown(
-        f"<div style='background-color: #0F172A; border: 1px solid #1E293B; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; text-align: center;'>"
-        f"<span style='color: #94A3B8; font-size: 0.85rem;'>📄 Reporte Activo: <b style='color: #38BDF8;'>{display_reporte}</b></span>"
+        f"<div class='card-reporte'>"
+        f"📄 Reporte Activo: <b style='color: #38BDF8;'>{display_reporte}</b>"
         f"</div>", 
         unsafe_allow_html=True
     )
-    st.markdown("<p style='color: #F8FAFC; font-weight: bold; font-size: 0.95rem; margin-bottom: 2px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
+    
+    st.markdown("<p style='color: #F8FAFC; font-weight: bold; font-size: 0.90rem; margin-bottom: 2px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
 
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
@@ -459,7 +511,7 @@ if df is not None:
             elif len(row) > 37:
                 val_fecha_ingreso = limpiar_val_fecha(row.iloc[37])
             
-            # Tarjetas de Bien y Bodega con alto contraste móvil
+            # Tarjetas principales compactas
             st.markdown(f"<div class='card-bien'>📌 BIEN: {val_bien}</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='card-bodega'>🏢 BODEGA: {val_bodega}</div>", unsafe_allow_html=True)
             
@@ -476,17 +528,15 @@ if df is not None:
             tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
             
             with tab1:
-                # Agrupación solicitada: Código y Código Anterior | Marca, Modelo y Serie | Resto
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.markdown(f"<div class='data-box'><div class='data-label'>Código del Bien</div><div class='data-highlight'>{limpiar_val(row.get(c_codigo, '-'))}</div></div>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='data-box'><div class='data-label'>Marca</div><div class='data-value'>{limpiar_val(row.get(col_map.get('marca'), '-'))}</div></div>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='data-box'><div class='data-label'>Serie</div><div class='data-value'>{limpiar_val(row.get(c_serie, '-'))}</div></div>", unsafe_allow_html=True)
-                with col_b:
-                    st.markdown(f"<div class='data-box'><div class='data-label'>Código Anterior</div><div class='data-value'>{limpiar_val(row.get(c_anterior, '-'))}</div></div>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='data-box'><div class='data-label'>Modelo</div><div class='data-value'>{limpiar_val(row.get(col_map.get('modelo'), '-'))}</div></div>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='data-box'><div class='data-label'>Fecha de Ingreso</div><div class='data-value'>{val_fecha_ingreso}</div></div>", unsafe_allow_html=True)
+                # Organización adaptable a 1 sola columna en dispositivos móviles
+                st.markdown(f"<div class='data-box'><div class='data-label'>Código del Bien</div><div class='data-highlight'>{limpiar_val(row.get(c_codigo, '-'))}</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='data-box'><div class='data-label'>Código Anterior</div><div class='data-value'>{limpiar_val(row.get(c_anterior, '-'))}</div></div>", unsafe_allow_html=True)
                 
+                st.markdown(f"<div class='data-box'><div class='data-label'>Marca</div><div class='data-value'>{limpiar_val(row.get(col_map.get('marca'), '-'))}</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='data-box'><div class='data-label'>Modelo</div><div class='data-value'>{limpiar_val(row.get(col_map.get('modelo'), '-'))}</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='data-box'><div class='data-label'>Serie</div><div class='data-value'>{limpiar_val(row.get(c_serie, '-'))}</div></div>", unsafe_allow_html=True)
+                
+                st.markdown(f"<div class='data-box'><div class='data-label'>Fecha de Ingreso del Bien</div><div class='data-value'>{val_fecha_ingreso}</div></div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='data-box'><div class='data-label'>Valor Contable</div><div class='data-highlight'>{val_contable_fmt}</div></div>", unsafe_allow_html=True)
                 
             with tab2:
