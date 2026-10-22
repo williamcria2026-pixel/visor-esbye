@@ -16,18 +16,16 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# CSS personalizado optimizado para eliminar espacios excesivos y solucionar la grilla en móviles
+# CSS personalizado para eliminar espacios muertos y ajustar la vista móvil a una columna fluida
 st.markdown("""
     <style>
-        /* Reducción general de relleno en el contenedor principal */
         .block-container {
-            padding-top: 0.5rem !important;
+            padding-top: 0.4rem !important;
             padding-bottom: 0.8rem !important;
             padding-left: 0.6rem !important;
             padding-right: 0.6rem !important;
         }
         
-        /* Ajuste responsivo para el buscador (input + botón eliminar) */
         @media (max-width: 768px) {
             div[data-testid="stHorizontalBlock"] {
                 display: flex !important;
@@ -44,7 +42,7 @@ st.markdown("""
                 flex: 0 0 55px !important;
             }
             
-            /* Forzar a que las columnas de datos dentro de las pestañas ocupen el 100% de ancho en el celular */
+            /* Forzar grilla a una sola columna vertical en celulares para evitar que se rompa el texto */
             div[data-testid="stColumn"] {
                 width: 100% !important;
                 flex: 1 1 100% !important;
@@ -56,36 +54,38 @@ st.markdown("""
             display: none !important;
         }
         
-        hr {
-            margin: 0.4rem 0rem !important;
-        }
-        
-        /* Estilos visuales móviles dinámicos con márgenes compactos */
-        .header-box {
+        /* Estilos del encabezado unificado ultra-compacto */
+        .header-container {
             text-align: center;
             margin-top: 0px;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
         }
         .header-title {
             color: #38BDF8;
-            font-size: 1.35rem;
+            font-size: 1.30rem;
             font-weight: bold;
-            margin: 0px 0px 2px 0px !important;
-            line-height: 1.2;
+            margin: 0px 0px 2px 0px;
+            line-height: 1.1;
         }
         .header-sub {
             color: #60A5FA;
             font-style: italic;
             font-weight: bold;
             font-size: 0.80rem;
-            margin: 0px !important;
+            margin: 0px 0px 6px 0px;
+        }
+        .custom-divider {
+            border: none;
+            height: 1px;
+            background-color: #334155;
+            margin: 6px 0px;
         }
         .card-reporte {
             background-color: #0F172A;
             border: 1px solid #1E293B;
             padding: 6px 10px;
             border-radius: 6px;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
             text-align: center;
             font-size: 0.82rem;
             color: #94A3B8;
@@ -187,16 +187,6 @@ with st.sidebar:
                 st.success("¡Escudo actualizado permanentemente!")
             except Exception as e:
                 st.error(f"Error al guardar el escudo: {e}")
-
-# Encabezado corporativo ultrapacto sin espacios muertos
-st.markdown("""
-    <div class='header-box'>
-        <div class='header-title'>BIENES Y BODEGAS</div>
-        <div class='header-sub'>Desarrollado por: Ing. William Cisneros R.</div>
-    </div>
-""", unsafe_allow_html=True)
-
-st.divider()
 
 # Carga de datos con indicador spinner
 df = None
@@ -447,14 +437,18 @@ if df is not None:
     c_serie = col_map.get('serie', cols[6] if len(cols) > 6 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
-    # Nombre de reporte compacto
-    st.markdown(
-        f"<div class='card-reporte'>"
-        f"📄 Reporte Activo: <b style='color: #38BDF8;'>{display_reporte}</b>"
-        f"</div>", 
-        unsafe_allow_html=True
-    )
-    
+    # Bloque superior unificado (Título, Subtítulo, Línea y Reporte Activo sin espacios muertos)
+    st.markdown(f"""
+        <div class='header-container'>
+            <div class='header-title'>BIENES Y BODEGAS</div>
+            <div class='header-sub'>Desarrollado por: Ing. William Cisneros R.</div>
+            <div class='custom-divider'></div>
+            <div class='card-reporte'>
+                📄 Reporte Activo: <b style='color: #38BDF8;'>{display_reporte}</b>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
     st.markdown("<p style='color: #F8FAFC; font-weight: bold; font-size: 0.90rem; margin-bottom: 2px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
 
     if "busqueda_val" not in st.session_state:
@@ -528,7 +522,7 @@ if df is not None:
             tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
             
             with tab1:
-                # Organización adaptable a 1 sola columna en dispositivos móviles
+                # Tarjetas de datos en una sola columna fluida optimizada para el celular
                 st.markdown(f"<div class='data-box'><div class='data-label'>Código del Bien</div><div class='data-highlight'>{limpiar_val(row.get(c_codigo, '-'))}</div></div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='data-box'><div class='data-label'>Código Anterior</div><div class='data-value'>{limpiar_val(row.get(c_anterior, '-'))}</div></div>", unsafe_allow_html=True)
                 
