@@ -16,10 +16,9 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# CSS para eliminar espacios en blanco de Streamlit y ajustar la vista en el celular
+# CSS optimizado para eliminar espacios muertos y controlar los anchos exactos en móviles
 st.markdown("""
     <style>
-        /* Eliminación radical de márgenes de Streamlit */
         .block-container {
             padding-top: 0rem !important;
             padding-bottom: 0.5rem !important;
@@ -53,9 +52,52 @@ st.markdown("""
             display: none !important;
         }
         
-        /* Ocultar margen de separadores */
         hr {
             margin: 0.2rem 0rem !important;
+        }
+
+        /* Contenedor flexible de tarjetas para asegurar que encajen simétricamente */
+        .info-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 4px;
+            box-sizing: border-box;
+        }
+        .info-card {
+            background: #1E293B;
+            border: 1px solid #334155;
+            border-radius: 5px;
+            padding: 5px 8px;
+            width: calc(50% - 3px);
+            box-sizing: border-box;
+        }
+        .info-card-full {
+            background: #1E293B;
+            border: 1px solid #334155;
+            border-radius: 5px;
+            padding: 5px 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .info-label {
+            color: #94A3B8;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 1px;
+        }
+        .info-val {
+            color: #F8FAFC;
+            font-size: 0.82rem;
+            font-weight: 600;
+            word-wrap: break-word;
+        }
+        .info-val-highlight {
+            color: #38BDF8;
+            font-size: 0.86rem;
+            font-weight: bold;
+            word-wrap: break-word;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -358,19 +400,19 @@ if df is not None:
     c_serie = col_map.get('serie', cols[6] if len(cols) > 6 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
-    # Encabezado compacto sin espacio vertical entre líneas
+    # Encabezado ultra compacto sin espacio vertical excedente
     st.markdown(f"""
         <div style="text-align: center; margin: 0; padding: 0;">
-            <div style="color: #38BDF8; font-size: 1.25rem; font-weight: bold; line-height: 1.0; margin: 0; padding: 0;">BIENES Y BODEGAS</div>
-            <div style="color: #60A5FA; font-style: italic; font-weight: bold; font-size: 0.78rem; line-height: 1.0; margin: 2px 0 0 0; padding: 0;">Desarrollado por: Ing. William Cisneros R.</div>
-            <hr style="margin: 4px 0 !important; border: 0; border-top: 1px solid #334155;">
-            <div style="background-color: #0F172A; border: 1px solid #1E293B; padding: 3px 6px; border-radius: 4px; font-size: 0.78rem; color: #94A3B8; margin-bottom: 4px;">
+            <div style="color: #38BDF8; font-size: 1.20rem; font-weight: bold; line-height: 1.0; margin: 0; padding: 0;">BIENES Y BODEGAS</div>
+            <div style="color: #60A5FA; font-style: italic; font-weight: bold; font-size: 0.76rem; line-height: 1.0; margin: 2px 0 0 0; padding: 0;">Desarrollado por: Ing. William Cisneros R.</div>
+            <hr style="margin: 3px 0 !important; border: 0; border-top: 1px solid #334155;">
+            <div style="background-color: #0F172A; border: 1px solid #1E293B; padding: 3px 6px; border-radius: 4px; font-size: 0.76rem; color: #94A3B8; margin-bottom: 4px;">
                 📄 Reporte Activo: <b style="color: #38BDF8;">{display_reporte}</b>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<p style='color: #F8FAFC; font-weight: bold; font-size: 0.85rem; margin: 0px 0px 2px 0px !important;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #F8FAFC; font-weight: bold; font-size: 0.82rem; margin: 0px 0px 2px 0px !important;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
 
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
@@ -436,58 +478,58 @@ if df is not None:
             else:
                 val_contable_fmt = "-"
 
-            # Renderizado de datos del bien
+            # Tarjetas de Bien y Bodega compactas
             st.markdown(f"""
-                <div style="background-color: #064E3B; border-left: 4px solid #10B981; padding: 6px 10px; border-radius: 6px; color: #ECFDF5; font-size: 0.85rem; font-weight: bold; margin-bottom: 4px;">📌 BIEN: {val_bien}</div>
-                <div style="background-color: #1E3A8A; border-left: 4px solid #3B82F6; padding: 6px 10px; border-radius: 6px; color: #EFF6FF; font-size: 0.82rem; font-weight: bold; margin-bottom: 6px;">🏢 BODEGA: {val_bodega}</div>
+                <div style="background-color: #064E3B; border-left: 4px solid #10B981; padding: 5px 8px; border-radius: 5px; color: #ECFDF5; font-size: 0.82rem; font-weight: bold; margin-bottom: 3px;">📌 BIEN: {val_bien}</div>
+                <div style="background-color: #1E3A8A; border-left: 4px solid #3B82F6; padding: 5px 8px; border-radius: 5px; color: #EFF6FF; font-size: 0.80rem; font-weight: bold; margin-bottom: 5px;">🏢 BODEGA: {val_bodega}</div>
             """, unsafe_allow_html=True)
 
             tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
             
             with tab1:
-                # Cuadrícula HTML pura de 2 columnas para evitar la distorsión vertical en celulares
+                # Sistema de rejilla flexible con anchos proporcionales exactos (48% cada tarjeta)
                 st.markdown(f"""
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 4px;">
-                        <div style="background: #1E293B; border: 1px solid #334155; border-radius: 5px; padding: 4px 6px;">
-                            <div style="color: #94A3B8; font-size: 0.62rem; text-transform: uppercase;">Código del Bien</div>
-                            <div style="color: #38BDF8; font-size: 0.82rem; font-weight: bold; word-break: break-word;">{limpiar_val(row.get(c_codigo, '-'))}</div>
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <div class="info-label">Código del Bien</div>
+                            <div class="info-val-highlight">{limpiar_val(row.get(c_codigo, '-'))}</div>
                         </div>
-                        <div style="background: #1E293B; border: 1px solid #334155; border-radius: 5px; padding: 4px 6px;">
-                            <div style="color: #94A3B8; font-size: 0.62rem; text-transform: uppercase;">Código Anterior</div>
-                            <div style="color: #F8FAFC; font-size: 0.80rem; font-weight: 600; word-break: break-word;">{limpiar_val(row.get(c_anterior, '-'))}</div>
+                        <div class="info-card">
+                            <div class="info-label">Código Anterior</div>
+                            <div class="info-val">{limpiar_val(row.get(c_anterior, '-'))}</div>
                         </div>
-                        <div style="background: #1E293B; border: 1px solid #334155; border-radius: 5px; padding: 4px 6px;">
-                            <div style="color: #94A3B8; font-size: 0.62rem; text-transform: uppercase;">Marca</div>
-                            <div style="color: #F8FAFC; font-size: 0.80rem; font-weight: 600; word-break: break-word;">{limpiar_val(row.get(col_map.get('marca'), '-'))}</div>
+                        <div class="info-card">
+                            <div class="info-label">Marca</div>
+                            <div class="info-val">{limpiar_val(row.get(col_map.get('marca'), '-'))}</div>
                         </div>
-                        <div style="background: #1E293B; border: 1px solid #334155; border-radius: 5px; padding: 4px 6px;">
-                            <div style="color: #94A3B8; font-size: 0.62rem; text-transform: uppercase;">Modelo</div>
-                            <div style="color: #F8FAFC; font-size: 0.80rem; font-weight: 600; word-break: break-word;">{limpiar_val(row.get(col_map.get('modelo'), '-'))}</div>
+                        <div class="info-card">
+                            <div class="info-label">Modelo</div>
+                            <div class="info-val">{limpiar_val(row.get(col_map.get('modelo'), '-'))}</div>
                         </div>
-                        <div style="background: #1E293B; border: 1px solid #334155; border-radius: 5px; padding: 4px 6px; grid-column: span 2;">
-                            <div style="color: #94A3B8; font-size: 0.62rem; text-transform: uppercase;">Serie</div>
-                            <div style="color: #F8FAFC; font-size: 0.80rem; font-weight: 600; word-break: break-word;">{limpiar_val(row.get(c_serie, '-'))}</div>
+                        <div class="info-card-full">
+                            <div class="info-label">Serie</div>
+                            <div class="info-val">{limpiar_val(row.get(c_serie, '-'))}</div>
                         </div>
-                        <div style="background: #1E293B; border: 1px solid #334155; border-radius: 5px; padding: 4px 6px;">
-                            <div style="color: #94A3B8; font-size: 0.62rem; text-transform: uppercase;">Fecha Ingreso</div>
-                            <div style="color: #F8FAFC; font-size: 0.80rem; font-weight: 600;">{val_fecha_ingreso}</div>
+                        <div class="info-card">
+                            <div class="info-label">Fecha Ingreso</div>
+                            <div class="info-val">{val_fecha_ingreso}</div>
                         </div>
-                        <div style="background: #1E293B; border: 1px solid #334155; border-radius: 5px; padding: 4px 6px;">
-                            <div style="color: #94A3B8; font-size: 0.62rem; text-transform: uppercase;">Valor Contable</div>
-                            <div style="color: #38BDF8; font-size: 0.82rem; font-weight: bold;">{val_contable_fmt}</div>
+                        <div class="info-card">
+                            <div class="info-label">Valor Contable</div>
+                            <div class="info-val-highlight">{val_contable_fmt}</div>
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
                 
             with tab2:
                 st.markdown(f"""
-                    <div style="background: #1E293B; border: 1px solid #334155; border-radius: 5px; padding: 5px 8px; margin-bottom: 4px;">
-                        <div style="color: #94A3B8; font-size: 0.62rem; text-transform: uppercase;">Custodio Actual</div>
-                        <div style="color: #F8FAFC; font-size: 0.82rem; font-weight: 600; word-break: break-word;">{limpiar_val(row.get(col_map.get('custodio'), '-'))}</div>
+                    <div class="info-card-full" style="margin-bottom: 4px;">
+                        <div class="info-label">Custodio Actual</div>
+                        <div class="info-val">{limpiar_val(row.get(col_map.get('custodio'), '-'))}</div>
                     </div>
-                    <div style="background: #1E293B; border: 1px solid #334155; border-radius: 5px; padding: 5px 8px; margin-bottom: 4px;">
-                        <div style="color: #94A3B8; font-size: 0.62rem; text-transform: uppercase;">Número de Cédula / RUC</div>
-                        <div style="color: #F8FAFC; font-size: 0.82rem; font-weight: 600;">{limpiar_val(row.get(col_map.get('cedula'), '-'))}</div>
+                    <div class="info-card-full">
+                        <div class="info-label">Número de Cédula / RUC</div>
+                        <div class="info-val">{limpiar_val(row.get(col_map.get('cedula'), '-'))}</div>
                     </div>
                 """, unsafe_allow_html=True)
 
