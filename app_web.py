@@ -16,11 +16,11 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# Estilos CSS avanzados para mantener el buscador y la alineación responsiva
+# CSS personalizado optimizado para pantallas móviles y alto contraste
 st.markdown("""
     <style>
         .block-container {
-            padding-top: 1.5rem;
+            padding-top: 1.2rem;
             padding-bottom: 1.0rem;
             padding-left: 0.8rem;
             padding-right: 0.8rem;
@@ -44,20 +44,56 @@ st.markdown("""
         div[data-testid="stTextInput"] label {
             display: none !important;
         }
-        h2 {
-            margin-top: 0.5rem !important;
-            margin-bottom: -0.3rem !important;
+        
+        /* Estilos visuales móviles dinámicos */
+        .card-bien {
+            background-color: #064E3B;
+            border-left: 5px solid #10B981;
+            padding: 10px 14px;
+            border-radius: 8px;
+            color: #ECFDF5;
+            font-size: 0.92rem;
+            font-weight: bold;
+            margin-bottom: 8px;
         }
-        p {
-            margin-bottom: 0.3rem !important;
+        .card-bodega {
+            background-color: #1E3A8A;
+            border-left: 5px solid #3B82F6;
+            padding: 10px 14px;
+            border-radius: 8px;
+            color: #EFF6FF;
+            font-size: 0.90rem;
+            font-weight: bold;
+            margin-bottom: 12px;
         }
-        hr {
-            margin: 0.6rem 0rem !important;
+        .data-box {
+            background-color: #1E293B;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+        .data-label {
+            color: #94A3B8;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+        .data-value {
+            color: #F8FAFC;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+        .data-highlight {
+            color: #38BDF8;
+            font-size: 1.05rem;
+            font-weight: bold;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# Función para cargar el Excel completo asegurando lectura limpia sin alterar índices
+# Función para cargar el Excel completo
 def cargar_excel(origen):
     for engine in ['calamine', 'openpyxl', None]:
         try:
@@ -71,7 +107,7 @@ def cargar_excel(origen):
             continue
     return None
 
-# Detección original y directa del escudo que ya le funcionaba correctamente
+# Detección original y directa del escudo
 def obtener_ruta_escudo():
     if os.path.exists("escudo.png"):
         return "escudo.png"
@@ -80,7 +116,7 @@ def obtener_ruta_escudo():
             return f
     return None
 
-# Barra lateral con opciones y gestión opcional del escudo
+# Barra lateral con opciones
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
@@ -107,12 +143,12 @@ with st.sidebar:
                 st.error(f"Error al guardar el escudo: {e}")
 
 # Encabezado corporativo
-st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #1D4ED8; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
+st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #38BDF8;'>BIENES Y BODEGAS</h2>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #60A5FA; font-style: italic; font-weight: bold; font-size: 0.85rem;'>Desarrollado por: Ing. William Cisneros R.</p>", unsafe_allow_html=True)
 st.divider()
 
-# Recuperación segura del archivo con indicador de carga profesional (Spinner)
+# Carga de datos con indicador spinner
 df = None
 display_reporte = "Ninguno"
 
@@ -149,7 +185,7 @@ else:
 
 fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
 
-# Funciones de limpieza de datos
+# Funciones auxiliares de limpieza
 def limpiar_val_fecha(val):
     if pd.isna(val) or str(val).strip().lower() in ["nan", "none", "", "nat", "null"]:
         return "-"
@@ -180,7 +216,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para generar el PDF oficial con el escudo original y espacio entre el signo $ y la cifra
+# Función para la generación del PDF oficial con espacio entre $ y la cifra
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -267,7 +303,6 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     if val_contable_clean not in ["-", "."]:
         try:
             val_contable_num = float(val_contable_clean.replace('$', '').replace(',', ''))
-            # Espacio exacto solicitado entre el símbolo $ y la cifra
             val_contable_str = f"$  {val_contable_num:,.2f}"
         except:
             val_contable_str = val_contable_clean
@@ -363,12 +398,12 @@ if df is not None:
     c_anterior = col_map.get('anterior', c_codigo)
 
     st.markdown(
-        f"<div style='background-color: #1E293B; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; text-align: center;'>"
-        f"<span style='color: #CBD5E1; font-size: 0.88rem;'>📄 Reporte Activo: <b style='color: #93C5FD;'>{display_reporte}</b></span>"
+        f"<div style='background-color: #0F172A; border: 1px solid #1E293B; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; text-align: center;'>"
+        f"<span style='color: #94A3B8; font-size: 0.85rem;'>📄 Reporte Activo: <b style='color: #38BDF8;'>{display_reporte}</b></span>"
         f"</div>", 
         unsafe_allow_html=True
     )
-    st.markdown("<p style='color: #FFFFFF; font-weight: bold; font-size: 0.95rem; margin-bottom: 2px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #F8FAFC; font-weight: bold; font-size: 0.95rem; margin-bottom: 2px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
 
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
@@ -424,51 +459,56 @@ if df is not None:
             elif len(row) > 37:
                 val_fecha_ingreso = limpiar_val_fecha(row.iloc[37])
             
-            with st.container(border=True):
-                st.success(f"📌 **BIEN:** {val_bien}")
-                st.info(f"🏢 **BODEGA:** {val_bodega}")
-                
-                val_contable = row.get(col_map.get('valor'), '-') if col_map.get('valor') else '-'
-                val_contable_clean = limpiar_val(val_contable)
-                if val_contable_clean not in ["-", "."]:
-                    try:
-                        val_contable_fmt = f"${float(val_contable_clean.replace('$', '').replace(',', '')):,.2f}"
-                    except:
-                        val_contable_fmt = val_contable_clean
-                else:
-                    val_contable_fmt = "-"
+            # Tarjetas de Bien y Bodega con alto contraste móvil
+            st.markdown(f"<div class='card-bien'>📌 BIEN: {val_bien}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='card-bodega'>🏢 BODEGA: {val_bodega}</div>", unsafe_allow_html=True)
+            
+            val_contable = row.get(col_map.get('valor'), '-') if col_map.get('valor') else '-'
+            val_contable_clean = limpiar_val(val_contable)
+            if val_contable_clean not in ["-", "."]:
+                try:
+                    val_contable_fmt = f"${float(val_contable_clean.replace('$', '').replace(',', '')):,.2f}"
+                except:
+                    val_contable_fmt = val_contable_clean
+            else:
+                val_contable_fmt = "-"
 
-                tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
+            tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
+            
+            with tab1:
+                # Agrupación solicitada: Código y Código Anterior | Marca, Modelo y Serie | Resto
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    st.markdown(f"<div class='data-box'><div class='data-label'>Código del Bien</div><div class='data-highlight'>{limpiar_val(row.get(c_codigo, '-'))}</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='data-box'><div class='data-label'>Marca</div><div class='data-value'>{limpiar_val(row.get(col_map.get('marca'), '-'))}</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='data-box'><div class='data-label'>Serie</div><div class='data-value'>{limpiar_val(row.get(c_serie, '-'))}</div></div>", unsafe_allow_html=True)
+                with col_b:
+                    st.markdown(f"<div class='data-box'><div class='data-label'>Código Anterior</div><div class='data-value'>{limpiar_val(row.get(c_anterior, '-'))}</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='data-box'><div class='data-label'>Modelo</div><div class='data-value'>{limpiar_val(row.get(col_map.get('modelo'), '-'))}</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='data-box'><div class='data-label'>Fecha de Ingreso</div><div class='data-value'>{val_fecha_ingreso}</div></div>", unsafe_allow_html=True)
                 
-                with tab1:
-                    st.write(f"**Código del Bien:** {limpiar_val(row.get(c_codigo, '-'))}")
-                    st.write(f"**Código Anterior:** {limpiar_val(row.get(c_anterior, '-'))}")
-                    st.write(f"**Marca:** {limpiar_val(row.get(col_map.get('marca'), '-'))}")
-                    st.write(f"**Modelo:** {limpiar_val(row.get(col_map.get('modelo'), '-'))}")
-                    st.write(f"**Serie:** {limpiar_val(row.get(c_serie, '-'))}")
-                    st.write(f"**Fecha de Ingreso del Bien:** {val_fecha_ingreso}")
-                    st.write(f"**Valor Contable:** {val_contable_fmt}")
-                    
-                with tab2:
-                    st.write(f"**Custodio Actual:** {limpiar_val(row.get(col_map.get('custodio'), '-'))}")
-                    st.write(f"**Número de Cédula / RUC:** {limpiar_val(row.get(col_map.get('cedula'), '-'))}")
+                st.markdown(f"<div class='data-box'><div class='data-label'>Valor Contable</div><div class='data-highlight'>{val_contable_fmt}</div></div>", unsafe_allow_html=True)
+                
+            with tab2:
+                st.markdown(f"<div class='data-box'><div class='data-label'>Custodio Actual</div><div class='data-value'>{limpiar_val(row.get(col_map.get('custodio'), '-'))}</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='data-box'><div class='data-label'>Número de Cédula / RUC</div><div class='data-value'>{limpiar_val(row.get(col_map.get('cedula'), '-'))}</div></div>", unsafe_allow_html=True)
 
-                st.divider()
-                
-                with st.spinner("📄 Generando documento PDF oficial..."):
-                    pdf_bytes = generar_acta_pdf(row, fecha_acta_actual, col_map, val_fecha_ingreso)
-                
-                cod_bien_clean = str(row.get(c_codigo, 'Bien')).replace('/', '_')
-                fecha_nom = datetime.now().strftime("%d-%m-%Y")
-                nombre_archivo_pdf = f"Acta_{cod_bien_clean}_{fecha_nom}.pdf"
+            st.divider()
+            
+            with st.spinner("📄 Generando documento PDF oficial..."):
+                pdf_bytes = generar_acta_pdf(row, fecha_acta_actual, col_map, val_fecha_ingreso)
+            
+            cod_bien_clean = str(row.get(c_codigo, 'Bien')).replace('/', '_')
+            fecha_nom = datetime.now().strftime("%d-%m-%Y")
+            nombre_archivo_pdf = f"Acta_{cod_bien_clean}_{fecha_nom}.pdf"
 
-                st.download_button(
-                    label="📄 Generar e Imprimir Acta PDF Oficial",
-                    data=pdf_bytes,
-                    file_name=nombre_archivo_pdf,
-                    mime="application/pdf",
-                    use_container_width=True
-                )
+            st.download_button(
+                label="📄 Generar e Imprimir Acta PDF Oficial",
+                data=pdf_bytes,
+                file_name=nombre_archivo_pdf,
+                mime="application/pdf",
+                use_container_width=True
+            )
         else:
             st.error(f"❌ No se encontró ningún bien con el código: {termino_busqueda}")
 else:
