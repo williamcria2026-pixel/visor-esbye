@@ -181,7 +181,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Función para generar el PDF oficial con fecha a la izquierda, celdas centradas y TOTAL a la derecha
+# Función para generar el PDF oficial con espacios entre el signo $ y el valor
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -257,7 +257,8 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     if val_contable_clean not in ["-", "."]:
         try:
             val_contable_num = float(val_contable_clean.replace('$', '').replace(',', ''))
-            val_contable_str = f"${val_contable_num:,.2f}"
+            # SE APLICÓ EL ESPACIADO CON DOS ESPACIOS PROTEGIDOS (&nbsp;&nbsp;)
+            val_contable_str = f"$&nbsp;&nbsp;{val_contable_num:,.2f}"
         except:
             val_contable_str = val_contable_clean
     else:
@@ -413,7 +414,6 @@ if df is not None:
             elif len(row) > 37:
                 val_fecha_ingreso = limpiar_val_fecha(row.iloc[37])
             
-            # Mejora 4: Organización en contenedor con bordes estéticos (Card UI)
             with st.container(border=True):
                 st.success(f"📌 **BIEN:** {val_bien}")
                 st.info(f"🏢 **BODEGA:** {val_bodega}")
@@ -445,7 +445,6 @@ if df is not None:
 
                 st.divider()
                 
-                # Mejora 3: Spinner profesional al generar el PDF
                 with st.spinner("📄 Generando documento PDF oficial..."):
                     pdf_bytes = generar_acta_pdf(row, fecha_acta_actual, col_map, val_fecha_ingreso)
                 
