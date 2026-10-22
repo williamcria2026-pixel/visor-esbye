@@ -16,12 +16,12 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# CSS optimizado: corrige la visibilidad del encabezado arriba y añade espacio inferior para el botón
+# CSS corregido: margen superior seguro para el encabezado y amplio espacio inferior para el botón
 st.markdown("""
     <style>
         .block-container {
-            padding-top: 1.2rem !important;
-            padding-bottom: 4.5rem !important;
+            padding-top: 3.5rem !important;
+            padding-bottom: 6.5rem !important;
             padding-left: 0.5rem !important;
             padding-right: 0.5rem !important;
         }
@@ -402,9 +402,9 @@ if df is not None:
     c_serie = col_map.get('serie', cols[6] if len(cols) > 6 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
-    # Encabezado visible y bien espaciado
+    # Encabezado con margen superior adecuado para evitar que quede oculto
     st.markdown(f"""
-        <div style="text-align: center; margin-top: 5px; margin-bottom: 5px;">
+        <div style="text-align: center; margin-top: 2px; margin-bottom: 5px;">
             <div style="color: #38BDF8; font-size: 1.25rem; font-weight: bold; line-height: 1.1; margin: 0;">BIENES Y BODEGAS</div>
             <div style="color: #60A5FA; font-style: italic; font-weight: bold; font-size: 0.78rem; margin: 2px 0 4px 0;">Desarrollado por: Ing. William Cisneros R.</div>
             <div style="border-top: 1px solid #334155; margin: 4px 0;"></div>
@@ -550,6 +550,9 @@ if df is not None:
                 mime="application/pdf",
                 use_container_width=True
             )
+            
+            # Espacio en blanco adicional en la parte inferior para que el botón no quede pegado al borde
+            st.markdown("<div style='height: 80px;'></div>", unsafe_allow_html=True)
         else:
             st.error(f"❌ No se encontró ningún bien con el código: {termino_busqueda}")
 else:
