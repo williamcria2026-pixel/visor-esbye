@@ -16,11 +16,11 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# CSS optimizado: diseño móvil limpio, sin solapamientos y espacio inferior adecuado
+# CSS optimizado: margen superior seguro para el título y separación limpia para el botón
 st.markdown("""
     <style>
         .block-container {
-            padding-top: 2.2rem !important;
+            padding-top: 3.0rem !important;
             padding-bottom: 6.0rem !important;
             padding-left: 0.5rem !important;
             padding-right: 0.5rem !important;
@@ -388,9 +388,9 @@ if df is not None:
     c_serie = col_map.get('serie', cols[4] if len(cols) > 4 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
-    # Encabezado visual compacto
+    # Encabezado superior restaurado y totalmente visible con margen superior seguro
     st.markdown(f"""
-        <div style="text-align: center; margin-top: 2px; margin-bottom: 6px;">
+        <div style="text-align: center; margin-top: 5px; margin-bottom: 6px;">
             <div style="color: #38BDF8; font-size: 1.25rem; font-weight: bold; line-height: 1.1; margin: 0;">BIENES Y BODEGAS</div>
             <div style="color: #60A5FA; font-style: italic; font-weight: bold; font-size: 0.78rem; margin: 2px 0 4px 0;">Desarrollado por: Ing. William Cisneros R.</div>
             <div style="border-top: 1px solid #334155; margin: 4px 0;"></div>
@@ -463,7 +463,7 @@ if df is not None:
             else:
                 val_contable_fmt = "-"
 
-            # Tarjetas con nombres exactos y mapeo correcto
+            # Tarjetas con nombres exactos
             st.markdown(f"""
                 <div style="background-color: #064E3B; border-left: 4px solid #10B981; padding: 6px 10px; border-radius: 5px; color: #ECFDF5; font-size: 0.82rem; font-weight: bold; margin-top: 6px; margin-bottom: 4px;">📌 Bien: {val_bien}</div>
                 <div style="background-color: #1E3A8A; border-left: 4px solid #3B82F6; padding: 6px 10px; border-radius: 5px; color: #EFF6FF; font-size: 0.80rem; font-weight: bold; margin-bottom: 6px;">🏢 Bodega: {val_bodega}</div>
@@ -525,6 +525,9 @@ if df is not None:
             cod_bien_clean = str(row.get(c_codigo, 'Bien')).replace('/', '_')
             fecha_nom = datetime.now().strftime("%d-%m-%Y")
             nombre_archivo_pdf = f"Acta_{cod_bien_clean}_{fecha_nom}.pdf"
+
+            # Espacio superior explícito para separar la pestaña/botón de descarga de las tarjetas de datos
+            st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
 
             st.download_button(
                 label="📄 Generar e Imprimir Acta PDF Oficial",
