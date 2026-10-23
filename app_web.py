@@ -114,7 +114,55 @@ st.markdown("""
             color: #F8FAFC;
             word-wrap: break-word;
         }
-        .acta-item b { color: #38BDF8; }
+        .acta-item b { color: #FBBF24; }
+
+        /* Tarjetas del custodio en color morado para distinguirlas de los datos del bien */
+        .info-card-custodio {
+            background: #3B0764;
+            border: 1px solid #7E22CE;
+            border-radius: 5px;
+            padding: 6px 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .info-card-custodio .info-label { color: #D8B4FE; }
+
+        /* Franja de la sección de acta (color ámbar) */
+        .acta-banner {
+            background: #78350F;
+            border: 1px solid #F59E0B;
+            border-left: 5px solid #F59E0B;
+            border-radius: 5px;
+            padding: 6px 10px;
+            margin: 10px 0 6px 0;
+            color: #FEF3C7;
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+
+        /* Colores de los botones */
+        .st-key-btn_agregar button {
+            background-color: #065F46 !important;
+            border: 1px solid #10B981 !important;
+            color: #ECFDF5 !important;
+            font-weight: bold !important;
+        }
+        .st-key-dl_individual button {
+            background-color: #1E3A8A !important;
+            border: 1px solid #3B82F6 !important;
+            color: #EFF6FF !important;
+        }
+        .st-key-dl_grupal button {
+            background-color: #B45309 !important;
+            border: 1px solid #FBBF24 !important;
+            color: #FFFBEB !important;
+            font-weight: bold !important;
+        }
+        .st-key-btn_vaciar button {
+            background-color: #7F1D1D !important;
+            border: 1px solid #EF4444 !important;
+            color: #FEE2E2 !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -394,16 +442,24 @@ with st.sidebar:
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
 
     if archivo_subido is not None:
-        try:
-            with open("reporte_activo.xlsx", "wb") as f:
-                f.write(archivo_subido.getbuffer())
-            with open("nombre_reporte.txt", "w", encoding="utf-8") as f:
-                f.write(archivo_subido.name)
-            st.session_state.acta_items = []  # un reporte nuevo reinicia la acta
-            st.success(f"Reporte '{archivo_subido.name}' guardado correctamente.")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Error al guardar archivo: {e}")
+        firma_archivo = f"{archivo_subido.name}-{archivo_subido.size}"
+        # Solo se guarda una vez por archivo; así no se borra la acta en cada clic
+        if st.session_state.get("ultimo_archivo") != firma_archivo:
+            guardado = False
+            try:
+                with open("reporte_activo.xlsx", "wb") as f:
+                    f.write(archivo_subido.getbuffer())
+                with open("nombre_reporte.txt", "w", encoding="utf-8") as f:
+                    f.write(archivo_subido.name)
+                guardado = True
+            except Exception as e:
+                st.error(f"Error al guardar archivo: {e}")
+            if guardado:
+                st.session_state.ultimo_archivo = firma_archivo
+                st.session_state.acta_items = []  # un reporte nuevo reinicia la acta
+                st.rerun()
+        else:
+            st.success(f"Reporte '{archivo_subido.name}' cargado correctamente.")
 
     st.divider()
     with st.expander("🛡️ Configuración del Escudo"):
@@ -565,18 +621,17 @@ if df is not None:
 
             with tab2:
                 st.markdown(f"""
-                    <div class="info-card-full" style="margin-top: 4px; margin-bottom: 5px;">
+                    <div class="info-card-custodio" style="margin-top: 4px; margin-bottom: 5px;">
                         <div class="info-label">Custodio Actual</div>
                         <div class="info-val">{limpiar_val(row.get(col_map.get('custodio'), '-'))}</div>
                     </div>
-                    <div class="info-card-full">
+                    <div class="info-card-custodio">
                         <div class="info-label">Nro de Cédula/ RUC</div>
                         <div class="info-val">{limpiar_val(row.get(col_map.get('cedula'), '-'))}</div>
                     </div>
                 """, unsafe_allow_html=True)
 
-            st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
-            st.divider()
+            st.markdown("<div class='acta-banner'>🧾 ACTA DE ENTREGA - Agregue este bien o genere su acta</div>", unsafe_allow_html=True)
 
             codigo_bien = limpiar_val(row.get(c_codigo, '-'))
             ya_agregado = codigo_bien in [i["codigo"] for i in st.session_state.acta_items]
@@ -614,7 +669,6 @@ if df is not None:
     # ------------------------------------------------------------------
     items = st.session_state.acta_items
     if items:
-        st.divider()
         total_acta = 0.0
         for it in items:
             n = valor_numerico(it["row"].get(col_map.get('valor'), '-')) if col_map.get('valor') else None
@@ -622,9 +676,9 @@ if df is not None:
                 total_acta += n
 
         st.markdown(f"""
-            <div style="background-color: #0F172A; border: 1px solid #38BDF8; border-radius: 5px; padding: 6px 10px; margin-bottom: 4px;">
-                <div style="color: #38BDF8; font-weight: bold; font-size: 0.9rem;">📋 Acta en preparación: {len(items)} bien(es)</div>
-                <div style="color: #94A3B8; font-size: 0.78rem;">Total: <b style="color: #F8FAFC;">{formato_dinero(total_acta)}</b></div>
+            <div style="background-color: #78350F; border: 1px solid #F59E0B; border-left: 5px solid #F59E0B; border-radius: 5px; padding: 6px 10px; margin: 14px 0 6px 0;">
+                <div style="color: #FEF3C7; font-weight: bold; font-size: 0.9rem;">📋 ACTA EN PREPARACIÓN: {len(items)} bien(es)</div>
+                <div style="color: #FCD34D; font-size: 0.78rem;">Total: <b style="color: #FFFBEB;">{formato_dinero(total_acta)}</b></div>
             </div>
         """, unsafe_allow_html=True)
 
