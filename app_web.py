@@ -16,12 +16,12 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# CSS corregido: margen superior seguro para el encabezado y amplio espacio inferior para el botón
+# CSS optimizado: corregido el encimado del buscador, visibilidad superior e inferior
 st.markdown("""
     <style>
         .block-container {
-            padding-top: 3.5rem !important;
-            padding-bottom: 6.5rem !important;
+            padding-top: 2.2rem !important;
+            padding-bottom: 6.0rem !important;
             padding-left: 0.5rem !important;
             padding-right: 0.5rem !important;
         }
@@ -30,7 +30,7 @@ st.markdown("""
             margin-bottom: 0px !important;
         }
         div[data-testid="stVerticalBlock"] {
-            gap: 0rem !important;
+            gap: 0.2rem !important;
         }
         
         @media (max-width: 768px) {
@@ -50,6 +50,10 @@ st.markdown("""
             }
         }
         
+        /* Ajuste para despejar la etiqueta del buscador */
+        div[data-testid="stTextInput"] {
+            margin-top: 4px !important;
+        }
         div[data-testid="stTextInput"] label {
             display: none !important;
         }
@@ -58,11 +62,12 @@ st.markdown("""
             margin: 0.3rem 0rem !important;
         }
 
-        /* Sistema de rejilla flexible para las tarjetas de datos */
+        /* Rejilla flexible para las tarjetas de datos */
         .info-grid {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
+            margin-top: 4px;
             margin-bottom: 4px;
             box-sizing: border-box;
         }
@@ -70,7 +75,7 @@ st.markdown("""
             background: #1E293B;
             border: 1px solid #334155;
             border-radius: 5px;
-            padding: 5px 8px;
+            padding: 6px 8px;
             width: calc(50% - 3px);
             box-sizing: border-box;
         }
@@ -78,7 +83,7 @@ st.markdown("""
             background: #1E293B;
             border: 1px solid #334155;
             border-radius: 5px;
-            padding: 5px 8px;
+            padding: 6px 8px;
             width: 100%;
             box-sizing: border-box;
         }
@@ -87,7 +92,7 @@ st.markdown("""
             font-size: 0.65rem;
             text-transform: uppercase;
             letter-spacing: 0.3px;
-            margin-bottom: 1px;
+            margin-bottom: 2px;
         }
         .info-val {
             color: #F8FAFC;
@@ -127,7 +132,7 @@ def obtener_ruta_escudo():
             return f
     return None
 
-# Barra lateral con opciones
+# Barra lateral con opciones (Opción 2 conservada)
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
@@ -138,7 +143,8 @@ with st.sidebar:
                 f.write(archivo_subido.getbuffer())
             with open("nombre_reporte.txt", "w", encoding="utf-8") as f:
                 f.write(archivo_subido.name)
-            st.success(f"Reporte '{archivo_subido.name}' cargado con éxito.")
+            st.success(f"Reporte '{archivo_subido.name}' guardado correctamente.")
+            st.rerun()
         except Exception as e:
             st.error(f"Error al guardar archivo: {e}")
 
@@ -158,35 +164,13 @@ df = None
 display_reporte = "Ninguno"
 
 if os.path.exists("reporte_activo.xlsx"):
-    with st.spinner("📂 Cargando reporte..."):
-        df = cargar_excel("reporte_activo.xlsx")
-    if df is not None:
-        if os.path.exists("nombre_reporte.txt"):
-            try:
-                with open("nombre_reporte.txt", "r", encoding="utf-8") as f:
-                    display_reporte = f.read().strip()
-            except:
-                display_reporte = "reporte_activo.xlsx"
-        else:
-            display_reporte = "reporte_activo.xlsx"
-    else:
+    df = cargar_excel("reporte_activo.xlsx")
+    if df is not None and os.path.exists("nombre_reporte.txt"):
         try:
-            os.remove("reporte_activo.xlsx")
-            if os.path.exists("nombre_reporte.txt"):
-                os.remove("nombre_reporte.txt")
+            with open("nombre_reporte.txt", "r", encoding="utf-8") as f:
+                display_reporte = f.read().strip()
         except:
-            pass
-else:
-    if os.path.exists("informe.xlsx"):
-        with st.spinner("📂 Cargando reporte..."):
-            df = cargar_excel("informe.xlsx")
-        display_reporte = "informe.xlsx"
-    else:
-        archivos_excel = [f for f in os.listdir('.') if (f.endswith('.xlsx') or f.endswith('.xls')) and not f.startswith('escudo') and f != 'nombre_reporte.txt']
-        if archivos_excel:
-            with st.spinner("📂 Cargando reporte..."):
-                df = cargar_excel(archivos_excel[0])
-            display_reporte = archivos_excel[0]
+            display_reporte = "reporte_activo.xlsx"
 
 fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
 
@@ -221,7 +205,7 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Generación del PDF
+# Generación del PDF oficial
 def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -402,9 +386,9 @@ if df is not None:
     c_serie = col_map.get('serie', cols[6] if len(cols) > 6 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
-    # Encabezado con margen superior adecuado para evitar que quede oculto
+    # Encabezado visual compacto
     st.markdown(f"""
-        <div style="text-align: center; margin-top: 2px; margin-bottom: 5px;">
+        <div style="text-align: center; margin-top: 2px; margin-bottom: 6px;">
             <div style="color: #38BDF8; font-size: 1.25rem; font-weight: bold; line-height: 1.1; margin: 0;">BIENES Y BODEGAS</div>
             <div style="color: #60A5FA; font-style: italic; font-weight: bold; font-size: 0.78rem; margin: 2px 0 4px 0;">Desarrollado por: Ing. William Cisneros R.</div>
             <div style="border-top: 1px solid #334155; margin: 4px 0;"></div>
@@ -414,7 +398,8 @@ if df is not None:
         </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<p style='color: #F8FAFC; font-weight: bold; font-size: 0.85rem; margin: 4px 0 2px 0;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
+    # Etiqueta de búsqueda claramente separada
+    st.markdown("<p style='color: #F8FAFC; font-weight: bold; font-size: 0.85rem; margin: 8px 0px 2px 0px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
 
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
@@ -480,15 +465,16 @@ if df is not None:
             else:
                 val_contable_fmt = "-"
 
-            # Tarjetas de Bien y Bodega
+            # Tarjetas con nombres exactos de la imagen[cite: 5]
             st.markdown(f"""
-                <div style="background-color: #064E3B; border-left: 4px solid #10B981; padding: 6px 10px; border-radius: 5px; color: #ECFDF5; font-size: 0.82rem; font-weight: bold; margin-bottom: 4px;">📌 BIEN: {val_bien}</div>
-                <div style="background-color: #1E3A8A; border-left: 4px solid #3B82F6; padding: 6px 10px; border-radius: 5px; color: #EFF6FF; font-size: 0.80rem; font-weight: bold; margin-bottom: 6px;">🏢 BODEGA: {val_bodega}</div>
+                <div style="background-color: #064E3B; border-left: 4px solid #10B981; padding: 6px 10px; border-radius: 5px; color: #ECFDF5; font-size: 0.82rem; font-weight: bold; margin-top: 6px; margin-bottom: 4px;">📌 Bien: {val_bien}</div>
+                <div style="background-color: #1E3A8A; border-left: 4px solid #3B82F6; padding: 6px 10px; border-radius: 5px; color: #EFF6FF; font-size: 0.80rem; font-weight: bold; margin-bottom: 6px;">🏢 Bodega: {val_bodega}</div>
             """, unsafe_allow_html=True)
 
             tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
             
             with tab1:
+                # Encabezados de tarjetas adaptados fielmente a la imagen[cite: 5]
                 st.markdown(f"""
                     <div class="info-grid">
                         <div class="info-card">
@@ -500,19 +486,19 @@ if df is not None:
                             <div class="info-val">{limpiar_val(row.get(c_anterior, '-'))}</div>
                         </div>
                         <div class="info-card">
-                            <div class="info-label">Marca</div>
+                            <div class="info-label">Marca/ Otros</div>
                             <div class="info-val">{limpiar_val(row.get(col_map.get('marca'), '-'))}</div>
                         </div>
                         <div class="info-card">
-                            <div class="info-label">Modelo</div>
+                            <div class="info-label">Modelo/ Características</div>
                             <div class="info-val">{limpiar_val(row.get(col_map.get('modelo'), '-'))}</div>
                         </div>
                         <div class="info-card-full">
-                            <div class="info-label">Serie</div>
+                            <div class="info-label">Serie/ Identificación</div>
                             <div class="info-val">{limpiar_val(row.get(c_serie, '-'))}</div>
                         </div>
                         <div class="info-card">
-                            <div class="info-label">Fecha Ingreso</div>
+                            <div class="info-label">Fecha de Ingreso</div>
                             <div class="info-val">{val_fecha_ingreso}</div>
                         </div>
                         <div class="info-card">
@@ -524,12 +510,12 @@ if df is not None:
                 
             with tab2:
                 st.markdown(f"""
-                    <div class="info-card-full" style="margin-bottom: 5px;">
+                    <div class="info-card-full" style="margin-top: 4px; margin-bottom: 5px;">
                         <div class="info-label">Custodio Actual</div>
                         <div class="info-val">{limpiar_val(row.get(col_map.get('custodio'), '-'))}</div>
                     </div>
                     <div class="info-card-full">
-                        <div class="info-label">Número de Cédula / RUC</div>
+                        <div class="info-label">Nro de Cédula/ RUC</div>
                         <div class="info-val">{limpiar_val(row.get(col_map.get('cedula'), '-'))}</div>
                     </div>
                 """, unsafe_allow_html=True)
@@ -551,9 +537,9 @@ if df is not None:
                 use_container_width=True
             )
             
-            # Espacio en blanco adicional en la parte inferior para que el botón no quede pegado al borde
+            # Espacio libre amplio en la parte inferior para celulares
             st.markdown("<div style='height: 80px;'></div>", unsafe_allow_html=True)
         else:
             st.error(f"❌ No se encontró ningún bien con el código: {termino_busqueda}")
 else:
-    st.warning("⚠️ No se encontró ningún archivo Excel válido o no se pudo cargar. Por favor, suba su reporte en formato .xlsx mediante el menú de la izquierda.")
+    st.warning("⚠️ No se encontró ningún archivo Excel activo en el servidor. Por favor, suba su reporte institucional en formato .xlsx mediante el menú de la barra lateral izquierda.")
