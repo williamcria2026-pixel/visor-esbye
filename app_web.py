@@ -16,7 +16,7 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# CSS optimizado: corregido el encimado del buscador, visibilidad superior e inferior
+# CSS optimizado: diseño móvil limpio, sin solapamientos y espacio inferior adecuado
 st.markdown("""
     <style>
         .block-container {
@@ -50,7 +50,6 @@ st.markdown("""
             }
         }
         
-        /* Ajuste para despejar la etiqueta del buscador */
         div[data-testid="stTextInput"] {
             margin-top: 4px !important;
         }
@@ -132,7 +131,7 @@ def obtener_ruta_escudo():
             return f
     return None
 
-# Barra lateral con opciones (Opción 2 conservada)
+# Barra lateral con opciones
 with st.sidebar:
     st.header("⚙️ Opciones")
     archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
@@ -205,8 +204,8 @@ def limpiar_val(val):
             pass
     return texto.replace("DISENIO", "DISEÑO").replace("disenio", "diseño").replace("Disenio", "Diseño")
 
-# Generación del PDF oficial
-def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
+# Generación del PDF oficial con el mapeo exacto de columnas
+def generar_acta_pdf(row, fecha_acta_str, col_map):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -298,6 +297,8 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
     else:
         val_contable_str = "-"
 
+    val_f_ingreso = limpiar_val_fecha(row.get(col_map.get('fecha_ingreso'), '-'))
+
     data_row = [
         Paragraph(limpiar_val(row.get(col_map.get('codigo'), '-')), normal_center),
         Paragraph(limpiar_val(row.get(col_map.get('anterior'), '-')), normal_center),
@@ -306,8 +307,8 @@ def generar_acta_pdf(row, fecha_acta_str, col_map, val_f_ingreso_pdf):
         Paragraph(limpiar_val(row.get(col_map.get('modelo'), '-')), normal_center),
         Paragraph(limpiar_val(row.get(col_map.get('marca'), '-')), normal_center),
         Paragraph(limpiar_val(row.get(col_map.get('bodega'), '-')), normal_center),
-        Paragraph("BLD", normal_center),
-        Paragraph(val_f_ingreso_pdf, normal_center),
+        Paragraph(limpiar_val(row.get(col_map.get('tipo_reg'), 'BLD')), normal_center),
+        Paragraph(val_f_ingreso, normal_center),
         Paragraph(fecha_acta_str, normal_center),
         Paragraph("1", normal_center),
         Paragraph(val_contable_str, normal_center)
@@ -368,22 +369,23 @@ if df is not None:
     cols = list(df.columns)
     
     col_map = {}
-    col_fecha_ingreso_real = None
-
-    if len(cols) > 0: col_map['codigo'] = cols[0]
-    if len(cols) > 1: col_map['anterior'] = cols[1]
-    if len(cols) > 5: col_map['nombre'] = cols[5]
-    if len(cols) > 6: col_map['serie'] = cols[6]
-    if len(cols) > 7: col_map['modelo'] = cols[7]
-    if len(cols) > 8: col_map['marca'] = cols[8]
-    if len(cols) > 20: col_map['bodega'] = cols[20]
-    if len(cols) > 23: col_map['cedula'] = cols[23]
-    if len(cols) > 24: col_map['custodio'] = cols[24]
-    if len(cols) > 37: col_fecha_ingreso_real = cols[37]
-    if len(cols) > 41: col_map['valor'] = cols[41]
+    
+    # Mapeo exacto basado en la secuencia de la imagen proporcionada (0 a 11)
+    if len(cols) > 0: col_map['codigo'] = cols[0]           # Código del Bien
+    if len(cols) > 1: col_map['anterior'] = cols[1]         # Código Anterior
+    if len(cols) > 2: col_map['tipo_reg'] = cols[2]         # (BLD) o (BCA)
+    if len(cols) > 3: col_map['nombre'] = cols[3]           # Bien
+    if len(cols) > 4: col_map['serie'] = cols[4]            # Serie/ Identificación
+    if len(cols) > 5: col_map['modelo'] = cols[5]           # Modelo/ Características
+    if len(cols) > 6: col_map['marca'] = cols[6]            # Marca/ Otros
+    if len(cols) > 7: col_map['bodega'] = cols[7]           # Bodega
+    if len(cols) > 8: col_map['cedula'] = cols[8]           # Nro de Cédula/ RUC
+    if len(cols) > 9: col_map['custodio'] = cols[9]         # Custodio Actual
+    if len(cols) > 10: col_map['fecha_ingreso'] = cols[10]  # Fecha de Ingreso
+    if len(cols) > 11: col_map['valor'] = cols[11]          # Valor Contable
 
     c_codigo = col_map.get('codigo', cols[0])
-    c_serie = col_map.get('serie', cols[6] if len(cols) > 6 else cols[0])
+    c_serie = col_map.get('serie', cols[4] if len(cols) > 4 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
 
     # Encabezado visual compacto
@@ -449,11 +451,7 @@ if df is not None:
             val_bien = limpiar_val(row.get(col_map.get('nombre'), '-')) if col_map.get('nombre') else '-'
             val_bodega = limpiar_val(row.get(col_map.get('bodega'), '-')) if col_map.get('bodega') else '-'
             
-            val_fecha_ingreso = "-"
-            if col_fecha_ingreso_real and col_fecha_ingreso_real in row:
-                val_fecha_ingreso = limpiar_val_fecha(row.get(col_fecha_ingreso_real))
-            elif len(row) > 37:
-                val_fecha_ingreso = limpiar_val_fecha(row.iloc[37])
+            val_fecha_ingreso = limpiar_val_fecha(row.get(col_map.get('fecha_ingreso'), '-'))
             
             val_contable = row.get(col_map.get('valor'), '-') if col_map.get('valor') else '-'
             val_contable_clean = limpiar_val(val_contable)
@@ -465,7 +463,7 @@ if df is not None:
             else:
                 val_contable_fmt = "-"
 
-            # Tarjetas con nombres exactos de la imagen[cite: 5]
+            # Tarjetas con nombres exactos y mapeo correcto
             st.markdown(f"""
                 <div style="background-color: #064E3B; border-left: 4px solid #10B981; padding: 6px 10px; border-radius: 5px; color: #ECFDF5; font-size: 0.82rem; font-weight: bold; margin-top: 6px; margin-bottom: 4px;">📌 Bien: {val_bien}</div>
                 <div style="background-color: #1E3A8A; border-left: 4px solid #3B82F6; padding: 6px 10px; border-radius: 5px; color: #EFF6FF; font-size: 0.80rem; font-weight: bold; margin-bottom: 6px;">🏢 Bodega: {val_bodega}</div>
@@ -474,7 +472,6 @@ if df is not None:
             tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
             
             with tab1:
-                # Encabezados de tarjetas adaptados fielmente a la imagen[cite: 5]
                 st.markdown(f"""
                     <div class="info-grid">
                         <div class="info-card">
@@ -523,7 +520,7 @@ if df is not None:
             st.divider()
             
             with st.spinner("📄 Generando documento PDF oficial..."):
-                pdf_bytes = generar_acta_pdf(row, fecha_acta_actual, col_map, val_fecha_ingreso)
+                pdf_bytes = generar_acta_pdf(row, fecha_acta_actual, col_map)
             
             cod_bien_clean = str(row.get(c_codigo, 'Bien')).replace('/', '_')
             fecha_nom = datetime.now().strftime("%d-%m-%Y")
