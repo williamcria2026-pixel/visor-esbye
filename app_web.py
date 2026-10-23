@@ -105,64 +105,6 @@ st.markdown("""
             font-weight: bold;
             word-wrap: break-word;
         }
-        .acta-item {
-            background: #1E293B;
-            border: 1px solid #334155;
-            border-radius: 5px;
-            padding: 5px 8px;
-            font-size: 0.78rem;
-            color: #F8FAFC;
-            word-wrap: break-word;
-        }
-        .acta-item b { color: #FBBF24; }
-
-        /* Tarjetas del custodio en color morado para distinguirlas de los datos del bien */
-        .info-card-custodio {
-            background: #3B0764;
-            border: 1px solid #7E22CE;
-            border-radius: 5px;
-            padding: 6px 8px;
-            width: 100%;
-            box-sizing: border-box;
-        }
-        .info-card-custodio .info-label { color: #D8B4FE; }
-
-        /* Franja de la sección de acta (color ámbar) */
-        .acta-banner {
-            background: #78350F;
-            border: 1px solid #F59E0B;
-            border-left: 5px solid #F59E0B;
-            border-radius: 5px;
-            padding: 6px 10px;
-            margin: 10px 0 6px 0;
-            color: #FEF3C7;
-            font-weight: bold;
-            font-size: 0.85rem;
-        }
-
-        /* Colores de los botones */
-        .st-key-btn_agregar button {
-            background-color: #065F46 !important;
-            border: 1px solid #10B981 !important;
-            color: #ECFDF5 !important;
-            font-weight: bold !important;
-        }
-        .st-key-dl_individual button {
-            background-color: #1E3A8A !important;
-            border: 1px solid #3B82F6 !important;
-            color: #EFF6FF !important;
-        }
-        .st-key-dl_grupal button {
-            background-color: #B45309 !important;
-            border: 1px solid #FBBF24 !important;
-            color: #FFFBEB !important;
-            font-weight: bold !important;
-        }
-        .st-key-btn_vaciar button {
-            background-color: #7F1D1D !important;
-            border: 1px solid #EF4444 !important;
-            color: #FEE2E2 !important;
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -621,27 +563,28 @@ if df is not None:
 
             with tab2:
                 st.markdown(f"""
-                    <div class="info-card-custodio" style="margin-top: 4px; margin-bottom: 5px;">
+                    <div class="info-card-full" style="margin-top: 4px; margin-bottom: 5px;">
                         <div class="info-label">Custodio Actual</div>
                         <div class="info-val">{limpiar_val(row.get(col_map.get('custodio'), '-'))}</div>
                     </div>
-                    <div class="info-card-custodio">
+                    <div class="info-card-full">
                         <div class="info-label">Nro de Cédula/ RUC</div>
                         <div class="info-val">{limpiar_val(row.get(col_map.get('cedula'), '-'))}</div>
                     </div>
                 """, unsafe_allow_html=True)
 
-            st.markdown("<div class='acta-banner'>🧾 ACTA DE ENTREGA - Agregue este bien o genere su acta</div>", unsafe_allow_html=True)
+            st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
+            st.divider()
 
             codigo_bien = limpiar_val(row.get(c_codigo, '-'))
             ya_agregado = codigo_bien in [i["codigo"] for i in st.session_state.acta_items]
 
             # Botón para juntar este bien con otros en una sola acta
             if ya_agregado:
-                st.button("✅ Este bien ya está en la acta", disabled=True, use_container_width=True, key="btn_ya_agregado")
+                st.button("✅ Este bien ya está en la lista", disabled=True, use_container_width=True, key="btn_ya_agregado")
             else:
                 st.button(
-                    "➕ Agregar a la acta (varios bienes)",
+                    "➕ Agregar a la lista de varios bienes",
                     on_click=agregar_a_acta,
                     args=(row.to_dict(), codigo_bien),
                     use_container_width=True,
@@ -654,7 +597,7 @@ if df is not None:
             fecha_nom = datetime.now().strftime("%d-%m-%Y")
 
             st.download_button(
-                label="📄 Acta PDF solo de este bien",
+                label="📄 Generar e Imprimir Acta PDF Oficial",
                 data=pdf_individual,
                 file_name=f"Acta_{cod_bien_clean}_{fecha_nom}.pdf",
                 mime="application/pdf",
@@ -675,38 +618,35 @@ if df is not None:
             if n is not None:
                 total_acta += n
 
-        st.markdown(f"""
-            <div style="background-color: #78350F; border: 1px solid #F59E0B; border-left: 5px solid #F59E0B; border-radius: 5px; padding: 6px 10px; margin: 14px 0 6px 0;">
-                <div style="color: #FEF3C7; font-weight: bold; font-size: 0.9rem;">📋 ACTA EN PREPARACIÓN: {len(items)} bien(es)</div>
-                <div style="color: #FCD34D; font-size: 0.78rem;">Total: <b style="color: #FFFBEB;">{formato_dinero(total_acta)}</b></div>
-            </div>
-        """, unsafe_allow_html=True)
-
+        st.divider()
+        lineas = ""
         for i, it in enumerate(items):
             r = it["row"]
             nombre_it = limpiar_val(r.get(col_map.get('nombre'), '-')) if col_map.get('nombre') else '-'
-            c_item, c_del = st.columns([4.2, 0.8])
-            with c_item:
-                st.markdown(
-                    f"<div class='acta-item'><b>{i + 1}. {it['codigo']}</b><br>{nombre_it}</div>",
-                    unsafe_allow_html=True
-                )
-            with c_del:
-                st.button("❌", key=f"quitar_{i}_{it['codigo']}", on_click=quitar_de_acta, args=(i,), help="Quitar de la acta", use_container_width=True)
+            lineas += f"<div style='margin-top:4px;'><b style='color:#38BDF8;'>{i + 1}. {it['codigo']}</b> - {nombre_it}</div>"
+        st.markdown(
+            "<div class='info-card-full'>"
+            f"<div class='info-label'>Lista para acta: {len(items)} bien(es) | Total {formato_dinero(total_acta)}</div>"
+            f"<div class='info-val'>{lineas}</div>"
+            "</div>",
+            unsafe_allow_html=True
+        )
+        with st.expander("❌ Quitar un bien de la lista"):
+            for i, it in enumerate(items):
+                st.button(f"Quitar {it['codigo']}", key=f"quitar_{i}_{it['codigo']}", on_click=quitar_de_acta, args=(i,), use_container_width=True)
 
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
         pdf_grupal = generar_acta_pdf([it["row"] for it in items], fecha_acta_actual, col_map)
         st.download_button(
-            label=f"📄 Generar Acta PDF con {len(items)} bien(es)",
+            label=f"📄 Generar Acta PDF con los {len(items)} bienes de la lista",
             data=pdf_grupal,
             file_name=f"Acta_Grupal_{len(items)}_bienes_{datetime.now().strftime('%d-%m-%Y')}.pdf",
             mime="application/pdf",
             use_container_width=True,
-            key="dl_grupal",
-            type="primary"
+            key="dl_grupal"
         )
-        st.button("🧹 Vaciar acta", on_click=vaciar_acta, use_container_width=True, key="btn_vaciar")
+        st.button("🧹 Vaciar lista", on_click=vaciar_acta, use_container_width=True, key="btn_vaciar")
 
     # Espacio libre amplio en la parte inferior para celulares
     st.markdown("<div style='height: 80px;'></div>", unsafe_allow_html=True)
