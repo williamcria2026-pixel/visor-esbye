@@ -38,7 +38,8 @@ st.markdown("""
             div[data-testid="stHorizontalBlock"] {
                 display: flex !important;
                 flex-direction: row !important;
-                align-items: flex-end !important;
+                flex-wrap: nowrap !important;
+                align-items: center !important;
                 gap: 0.3rem !important;
             }
             div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
@@ -105,6 +106,16 @@ st.markdown("""
             font-weight: bold;
             word-wrap: break-word;
         }
+        .acta-item {
+            background: #1E293B;
+            border: 1px solid #334155;
+            border-radius: 5px;
+            padding: 8px 10px;
+            font-size: 0.85rem;
+            color: #F8FAFC;
+            font-weight: 600;
+        }
+        .acta-item b { color: #38BDF8; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -612,28 +623,24 @@ if df is not None:
     # ------------------------------------------------------------------
     items = st.session_state.acta_items
     if items:
-        total_acta = 0.0
-        for it in items:
-            n = valor_numerico(it["row"].get(col_map.get('valor'), '-')) if col_map.get('valor') else None
-            if n is not None:
-                total_acta += n
-
         st.divider()
-        lineas = ""
+        st.markdown("<p style='color: #F8FAFC; font-weight: bold; font-size: 0.85rem; margin: 4px 0px;'>📋 Lista para acta:</p>", unsafe_allow_html=True)
+
         for i, it in enumerate(items):
-            r = it["row"]
-            nombre_it = limpiar_val(r.get(col_map.get('nombre'), '-')) if col_map.get('nombre') else '-'
-            lineas += f"<div style='margin-top:4px;'><b style='color:#38BDF8;'>{i + 1}. {it['codigo']}</b> - {nombre_it}</div>"
-        st.markdown(
-            "<div class='info-card-full'>"
-            f"<div class='info-label'>Lista para acta: {len(items)} bien(es) | Total {formato_dinero(total_acta)}</div>"
-            f"<div class='info-val'>{lineas}</div>"
-            "</div>",
-            unsafe_allow_html=True
-        )
-        with st.expander("❌ Quitar un bien de la lista"):
-            for i, it in enumerate(items):
-                st.button(f"Quitar {it['codigo']}", key=f"quitar_{i}_{it['codigo']}", on_click=quitar_de_acta, args=(i,), use_container_width=True)
+            c_item, c_del = st.columns([4.2, 0.8])
+            with c_item:
+                st.markdown(f"<div class='acta-item'><b>{i + 1}.</b> {it['codigo']}</div>", unsafe_allow_html=True)
+            with c_del:
+                st.button("❌", key=f"quitar_{i}_{it['codigo']}", on_click=quitar_de_acta, args=(i,), help="Quitar de la lista", use_container_width=True)
+
+        # Aviso si la lista mezcla bienes de diferentes bodegas
+        conteo_bodegas = {}
+        for it in items:
+            b = limpiar_val(it["row"].get(col_map.get('bodega'), '-')) if col_map.get('bodega') else '-'
+            conteo_bodegas[b] = conteo_bodegas.get(b, 0) + 1
+        if len(conteo_bodegas) > 1:
+            detalle = "\n".join(f"- **{b}**: {n} bien(es)" for b, n in conteo_bodegas.items())
+            st.warning(f"⚠️ **Atención: la lista tiene bienes de DIFERENTES bodegas.** Revise antes de generar el acta:\n\n{detalle}")
 
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
