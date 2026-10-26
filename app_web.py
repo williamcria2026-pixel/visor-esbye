@@ -190,7 +190,7 @@ st.markdown("""
         div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] { margin-top: 16px !important; }
 
         /* Pestañas: selector con aspecto de pestañas */
-        .st-key-pestana { margin-top: 6px !important; margin-bottom: 8px !important; }
+        .st-key-pestana { margin-top: 4px !important; margin-bottom: 4px !important; }
         .st-key-pestana div[role="radiogroup"] { gap: 2px !important; flex-wrap: nowrap !important; width: 100% !important; }
         /* Pestañas: una fila, esquinas redondeadas, sin círculos (el color indica la activa) */
         .st-key-pestana [data-testid="stWidgetLabel"] { display: none !important; }
@@ -199,9 +199,12 @@ st.markdown("""
             flex: 1 1 0 !important; min-width: 0 !important;
             display: flex !important; align-items: center !important; justify-content: center !important;
             background: #2B1D6B !important; margin: 0 !important;
-            padding: 12px 4px !important; border-radius: 10px !important; cursor: pointer;
+            padding: 6px 4px !important; min-height: 34px !important; border-radius: 10px !important; cursor: pointer;
         }
-        .st-key-pestana label:not([data-testid="stWidgetLabel"]) > :not(input):not(:has([data-testid="stMarkdownContainer"])) { display: none !important; }
+        .st-key-pestana label :is(div, span, svg):not(:has([data-testid="stMarkdownContainer"])):not([data-testid="stMarkdownContainer"]):not([data-testid="stMarkdownContainer"] *) { display: none !important; }
+        .st-key-pestana div[role="radiogroup"] { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; width: 100% !important; }
+        .st-key-pestana div[role="radiogroup"] > * { flex: 1 1 0 !important; min-width: 0 !important; }
+        .st-key-pestana label:not([data-testid="stWidgetLabel"]) { width: 100% !important; box-sizing: border-box !important; }
         .st-key-pestana label:not([data-testid="stWidgetLabel"]) p {
             color: #FFFFFF !important; font-size: 13px !important; margin: 0 !important; white-space: nowrap;
         }
@@ -223,7 +226,7 @@ st.markdown("""
         .st-key-receptor_radio label p { color: #222222 !important; font-size: 0.92rem !important; margin: 0 !important; }
         .st-key-receptor_radio label:has(input:checked) { background: #DDE9FA !important; border-color: #16478F !important; }
         .st-key-receptor_radio label:has(input:checked) p { color: #16478F !important; font-weight: bold !important; }
-        .st-key-receptor_radio label:not([data-testid="stWidgetLabel"]) > :not(input):not(:has([data-testid="stMarkdownContainer"])) { display: none !important; }
+        .st-key-receptor_radio label :is(div, span, svg):not(:has([data-testid="stMarkdownContainer"])):not([data-testid="stMarkdownContainer"]):not([data-testid="stMarkdownContainer"] *) { display: none !important; }
 
         /* Botones ❌ para quitar bienes de la lista: misma altura que el renglón, en rojo */
         [class*="st-key-quitar_"] button {
@@ -1164,5 +1167,6 @@ if df is not None:
 
 else:
     st.warning("⚠️ No se encontró ningún archivo Excel activo en el servidor. Por favor, suba su reporte institucional en formato .xlsx mediante el menú de la barra lateral izquierda.")
+
 
 
