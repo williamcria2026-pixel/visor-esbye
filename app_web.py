@@ -4,12 +4,19 @@ import os
 from datetime import datetime
 import re
 import io
+import json
+import time
+import hmac
+import hashlib
+import unicodedata
+from html import escape as hesc
 from xml.sax.saxutils import escape
 from PIL import Image as PILImage
 
 # ReportLab para la generación del Acta PDF en formato horizontal (Landscape)
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib import colors
+from reportlab.pdfgen import canvas as rl_canvas
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -17,23 +24,27 @@ from reportlab.lib.units import inch
 # Configuración de la página
 st.set_page_config(page_title="Visor ESBYE", page_icon="📦", layout="centered")
 
-# CSS: diseño móvil limpio, sin solapamientos y con espacio superior para que se vea el título
+# ----------------------------------------------------------------------
+# Estilo visual inspirado en el sistema ESBYE (fondo claro, azul y morado)
+# ----------------------------------------------------------------------
 st.markdown("""
     <style>
+        .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+            background: #FFFFFF !important;
+            color: #222222 !important;
+            font-family: Arial, Helvetica, "Liberation Sans", sans-serif !important;
+        }
+        .stApp p, .stApp label { color: #222222; }
         .block-container {
-            padding-top: 4.5rem !important;
+            padding-top: 4rem !important;
             padding-bottom: 6.0rem !important;
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
+            padding-left: 0.6rem !important;
+            padding-right: 0.6rem !important;
         }
+        div.element-container { margin-bottom: 0px !important; }
+        div[data-testid="stVerticalBlock"] { gap: 0.2rem !important; }
 
-        div.element-container {
-            margin-bottom: 0px !important;
-        }
-        div[data-testid="stVerticalBlock"] {
-            gap: 0.2rem !important;
-        }
-
+        /* Filas de botones en una sola línea en el celular */
         @media (max-width: 768px) {
             div[data-testid="stHorizontalBlock"] {
                 display: flex !important;
@@ -48,74 +59,142 @@ st.markdown("""
                 min-width: 0px !important;
             }
             div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
-                flex: 0 0 50px !important;
+                flex: 0 0 56px !important;
             }
         }
 
-        div[data-testid="stTextInput"] {
-            margin-top: 4px !important;
+        /* Cuadro de texto */
+        div[data-testid="stTextInput"] label { display: none !important; }
+        div[data-testid="stTextInput"] { margin-top: 2px !important; }
+        div[data-baseweb="input"], div[data-baseweb="base-input"] {
+            background: #EDEEF0 !important;
+            border-radius: 3px !important;
         }
-        div[data-testid="stTextInput"] label {
-            display: none !important;
+        div[data-baseweb="input"] { border: 1px solid #767676 !important; }
+        div[data-baseweb="input"] input {
+            color: #222222 !important;
+            -webkit-text-fill-color: #222222 !important;
+            background: #EDEEF0 !important;
+            font-size: 16px !important;
+            height: 42px;
         }
 
-        hr {
-            margin: 0.3rem 0rem !important;
+        /* Botones grises estilo ESBYE */
+        div[data-testid="stButton"] button,
+        div[data-testid="stDownloadButton"] button,
+        div[data-testid="stFormSubmitButton"] button {
+            background: #EFEFEF !important;
+            border: 1px solid #767676 !important;
+            border-radius: 3px !important;
+            color: #000000 !important;
+            min-height: 46px !important;
+            font-size: 16px !important;
+        }
+        div[data-testid="stButton"] button p,
+        div[data-testid="stDownloadButton"] button p { color: inherit !important; }
+        div[data-testid="stButton"] button:disabled { color: #555555 !important; opacity: 0.8; }
+        .st-key-dl_individual button, .st-key-dl_grupal button {
+            background: #2B1D6B !important;
+            border: 1px solid #1B1250 !important;
+            color: #FFFFFF !important;
+            font-weight: bold !important;
+        }
+        .st-key-dl_individual button:hover:not(:disabled), .st-key-dl_grupal button:hover:not(:disabled) {
+            background: #55E6FF !important;
+            border-color: #55E6FF !important;
+            color: #1B1250 !important;
         }
 
-        .info-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-top: 4px;
-            margin-bottom: 4px;
-            box-sizing: border-box;
+        /* Pestañas */
+        div[data-baseweb="tab-list"] { gap: 2px !important; }
+        div[data-baseweb="tab-highlight"], div[data-baseweb="tab-border"] { display: none !important; }
+        button[data-baseweb="tab"] {
+            flex: 1 !important;
+            background: #2B1D6B !important;
+            color: #FFFFFF !important;
+            border-radius: 0 !important;
+            padding: 10px 4px !important;
+            height: auto !important;
+            justify-content: center !important;
         }
-        .info-card {
-            background: #1E293B;
-            border: 1px solid #334155;
-            border-radius: 5px;
-            padding: 6px 8px;
-            width: calc(50% - 3px);
-            box-sizing: border-box;
+        button[data-baseweb="tab"] p { color: inherit !important; font-size: 14px !important; }
+        button[data-baseweb="tab"][aria-selected="true"] {
+            background: #55E6FF !important;
+            color: #1B1250 !important;
+            font-weight: bold !important;
         }
-        .info-card-full {
-            background: #1E293B;
-            border: 1px solid #334155;
-            border-radius: 5px;
-            padding: 6px 8px;
-            width: 100%;
-            box-sizing: border-box;
+        div[data-baseweb="tab-panel"] { padding-top: 2px !important; }
+
+        /* Barra lateral */
+        section[data-testid="stSidebar"] { background: #EEF1F6 !important; }
+        section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2,
+        section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] p,
+        section[data-testid="stSidebar"] small { color: #1B2A78 !important; }
+
+        hr { margin: 0.3rem 0rem !important; }
+
+        /* Componentes de diseño */
+        .nav {
+            background: #2B1D6B; border-bottom: 3px solid #55E6FF; color: #FFFFFF; height: 54px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 1.1rem; letter-spacing: 1px;
         }
-        .info-label {
-            color: #94A3B8;
-            font-size: 0.65rem;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            margin-bottom: 2px;
+        .dev { text-align: center; font-size: 0.75rem; font-style: italic; color: #1B2A78; padding: 8px 0 2px; }
+        .red { border-top: 1px solid #E02020; margin: 6px 0 0; }
+        .bar {
+            display: block; background-color: #16478F;
+            background-image: radial-gradient(rgba(255,255,255,.14) 1px, transparent 1px);
+            background-size: 4px 4px; color: #FFFFFF; text-align: center;
+            font-weight: bold; font-size: 0.95rem; padding: 11px 8px; margin-top: 8px;
         }
-        .info-val {
-            color: #F8FAFC;
-            font-size: 0.82rem;
-            font-weight: 600;
-            word-wrap: break-word;
+        .row { display: grid; grid-template-columns: 40% 60%; gap: 2px; margin-top: 2px; }
+        .lb {
+            background: #DDE3EA; color: #1B2A78; font-size: 0.74rem; text-transform: uppercase;
+            text-align: center; padding: 10px 6px; display: flex; align-items: center; justify-content: center;
         }
-        .info-val-highlight {
-            color: #38BDF8;
-            font-size: 0.86rem;
-            font-weight: bold;
-            word-wrap: break-word;
+        .vl { background: #DDE3EA; padding: 6px; min-width: 0; }
+        .vl span {
+            display: block; overflow-wrap: anywhere; background: #EDEEF0; border: 1px solid #C3C8D0;
+            border-radius: 3px; padding: 8px 10px; font-size: 0.92rem; color: #333333;
         }
+        .vl span.hl { color: #16478F; font-weight: bold; }
         .acta-item {
-            background: #1E293B;
-            border: 1px solid #334155;
-            border-radius: 5px;
-            padding: 8px 10px;
-            font-size: 0.85rem;
-            color: #F8FAFC;
-            font-weight: 600;
+            background: #EDEEF0; border: 1px solid #C3C8D0; border-radius: 3px;
+            padding: 11px 10px; font-size: 0.92rem; color: #222222;
         }
-        .acta-item b { color: #38BDF8; }
+        .acta-item b { color: #16478F; }
+        .aviso {
+            background: #FFF4CE; border: 1px solid #C99700; border-radius: 3px;
+            padding: 10px; font-size: 0.8rem; color: #4A3600; margin-top: 8px;
+        }
+        .t { font-size: 0.75rem; color: #1B2A78; margin: 8px 0 2px; }
+        .err {
+            background: #FDE7E9; border: 1px solid #C62828; border-radius: 3px;
+            padding: 10px; margin-top: 8px; font-size: 0.88rem; color: #7A1010;
+        }
+        div[data-testid="stRadio"] label p { color: #222222 !important; font-size: 0.9rem !important; }
+        .st-key-dl_individual button:disabled, .st-key-dl_grupal button:disabled {
+            background: #9AA7BD !important; border-color: #9AA7BD !important; color: #FFFFFF !important;
+        }
+        div[data-testid="stForm"] {
+            border: 1px solid #8A8A8A !important; border-radius: 0 !important;
+            padding: 14px 16px !important; background: #FFFFFF !important; margin-top: 34px;
+        }
+        .login-t { text-align: center; font-weight: bold; font-size: 0.85rem; color: #2B1D6B; margin-bottom: 6px; }
+
+        /* Pestañas: selector con aspecto de pestañas */
+        .st-key-pestana div[role="radiogroup"] { gap: 2px !important; flex-wrap: nowrap !important; width: 100% !important; }
+        .st-key-pestana div[role="radiogroup"] > label {
+            flex: 1 1 0 !important; justify-content: center !important; background: #2B1D6B !important;
+            margin: 0 !important; padding: 12px 2px !important; border-radius: 0 !important;
+        }
+        .st-key-pestana div[role="radiogroup"] > label > div:not([data-testid="stMarkdownContainer"]) { display: none !important; }
+        .st-key-pestana div[role="radiogroup"] > label p {
+            color: #FFFFFF !important; font-size: 14px !important; margin: 0 !important; text-align: center;
+        }
+        .st-key-pestana div[role="radiogroup"] > label:has(input:checked) { background: #55E6FF !important; }
+        .st-key-pestana div[role="radiogroup"] > label:has(input:checked) p { color: #1B1250 !important; font-weight: bold !important; }
+        .nota { text-align: center; font-size: 0.75rem; color: #1B2A78; margin: 6px 0; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -197,10 +276,163 @@ def p(texto):
     return escape(str(texto))
 
 
+def fila(etiqueta, valor, resaltar=False):
+    """Fila de datos estilo ESBYE (etiqueta + valor)."""
+    clase = ' class="hl"' if resaltar else ''
+    return f'<div class="row"><div class="lb">{hesc(etiqueta)}</div><div class="vl"><span{clase}>{hesc(str(valor))}</span></div></div>'
+
+
+def limpiar_nombre_archivo(texto):
+    """Quita caracteres no permitidos en nombres de archivo y cambia espacios por _."""
+    texto = re.sub(r'[\\/:*?"<>|]+', '_', str(texto).strip())
+    texto = re.sub(r'\s+', '_', texto)
+    return texto.strip('_')
+
+
+def nombre_pdf(items):
+    """Un bien: Acta_codigo_dd_mm_aaaa.pdf | Varios: Acta_texto_dd_mm_aaaa.pdf"""
+    fecha = datetime.now().strftime("%d_%m_%Y")
+    if len(items) == 1:
+        base = limpiar_nombre_archivo(items[0]["codigo"]) or "Bien"
+    else:
+        base = limpiar_nombre_archivo(st.session_state.get("nombre_acta", ""))
+        if not base:
+            base = f"{len(items)}_bienes"
+    return f"Acta_{base}_{fecha}.pdf"
+
+
+def normalizar_cedula(valor):
+    """Deja solo dígitos y completa con ceros al inicio hasta 10 dígitos (RUC de 13 no se toca)."""
+    s = "" if valor is None else str(valor).strip()
+    if s.lower() in ["nan", "none", "", "nat", "null", "-"]:
+        return ""
+    if re.fullmatch(r'\d+\.0', s):
+        s = s[:-2]
+    d = re.sub(r'\D', '', s)
+    if not d:
+        return ""
+    if len(d) < 10:
+        d = d.zfill(10)
+    return d
+
+
+def sin_tildes(texto):
+    t = unicodedata.normalize('NFD', str(texto))
+    return ''.join(c for c in t if unicodedata.category(c) != 'Mn').upper()
+
+
+def lista_custodios(df_, col_custodio, col_cedula):
+    """Lista única de custodios {nombre, cedula} tomada del reporte."""
+    if not col_custodio or col_custodio not in df_.columns:
+        return []
+    columnas = [col_custodio] + ([col_cedula] if col_cedula and col_cedula in df_.columns else [])
+    unicos = df_[columnas].drop_duplicates()
+    salida, vistos = [], set()
+    for _, fila_ in unicos.iterrows():
+        nombre = limpiar_val(fila_[col_custodio])
+        if nombre == "-":
+            continue
+        cedula = normalizar_cedula(fila_[col_cedula]) if len(columnas) > 1 else ""
+        clave = (nombre, cedula)
+        if clave in vistos:
+            continue
+        vistos.add(clave)
+        salida.append({"nombre": nombre, "cedula": cedula})
+    return salida
+
+
+def buscar_custodios(custodios, termino):
+    """Busca por cédula (completando el 0 inicial) o por apellidos/nombres (sin tildes)."""
+    t = str(termino).strip()
+    if not t:
+        return []
+    if re.fullmatch(r'[\d\s.\-]+', t):
+        d = normalizar_cedula(t)
+        res = [c for c in custodios if c["cedula"] and c["cedula"] == d]
+        crudo = re.sub(r'\D', '', t)
+        if not res and len(crudo) >= 5:
+            res = [c for c in custodios if crudo in c["cedula"]]
+    else:
+        palabras = sin_tildes(t).split()
+        res = [c for c in custodios if all(w in sin_tildes(c["nombre"]) for w in palabras)]
+    return sorted(res, key=lambda c: c["nombre"])[:15]
+
+
+ARCHIVO_CLAVE = "clave_config.json"
+
+
+def clave_secreta():
+    """Clave original guardada en Secrets de Streamlit (clave = "1234")."""
+    try:
+        valor = str(st.secrets["clave"]).strip()
+    except Exception:
+        return None
+    return valor or None
+
+
+def clave_base():
+    return clave_secreta() or "1234"
+
+
+def _huella(texto):
+    return hashlib.sha256(texto.encode("utf-8")).hexdigest()
+
+
+def _hash_clave(clave, sal_hex):
+    return hashlib.pbkdf2_hmac("sha256", clave.encode("utf-8"), bytes.fromhex(sal_hex), 120000).hex()
+
+
+def verificar_clave(ingresada):
+    """La clave cambiada desde la aplicación vale mientras no se modifique la de Secrets."""
+    ingresada = str(ingresada)
+    base = clave_base()
+    try:
+        if os.path.exists(ARCHIVO_CLAVE):
+            with open(ARCHIVO_CLAVE, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            if cfg.get("origen") == _huella(base):
+                return hmac.compare_digest(_hash_clave(ingresada, cfg["sal"]), cfg["hash"])
+    except Exception:
+        pass
+    return hmac.compare_digest(ingresada.encode("utf-8"), base.encode("utf-8"))
+
+
+def guardar_clave_nueva(nueva):
+    """Guarda la clave cifrada (no en texto visible)."""
+    try:
+        sal = os.urandom(16).hex()
+        cfg = {"sal": sal, "hash": _hash_clave(nueva, sal), "origen": _huella(clave_base())}
+        with open(ARCHIVO_CLAVE, "w", encoding="utf-8") as f:
+            json.dump(cfg, f)
+        return True
+    except Exception:
+        return False
+
+
 # ----------------------------------------------------------------------
-# Generación del PDF (uno o varios bienes)
+# PDF con numeración de páginas centrada ("Página X de Y")
 # ----------------------------------------------------------------------
-def generar_acta_pdf(rows, fecha_acta_str, col_map):
+class NumberedCanvas(rl_canvas.Canvas):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._paginas_guardadas = []
+
+    def showPage(self):
+        self._paginas_guardadas.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        total = len(self._paginas_guardadas)
+        for estado in self._paginas_guardadas:
+            self.__dict__.update(estado)
+            self.setFont("Helvetica", 8)
+            self.setFillColor(colors.HexColor("#333333"))
+            self.drawCentredString(self._pagesize[0] / 2.0, 0.22 * inch, f"Página {self._pageNumber} de {total}")
+            super().showPage()
+        super().save()
+
+
+def generar_acta_pdf(rows, fecha_acta_str, col_map, receptor=None):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -208,7 +440,7 @@ def generar_acta_pdf(rows, fecha_acta_str, col_map):
         rightMargin=0.4 * inch,
         leftMargin=0.4 * inch,
         topMargin=0.4 * inch,
-        bottomMargin=0.4 * inch
+        bottomMargin=0.5 * inch
     )
     story = []
     styles = getSampleStyleSheet()
@@ -348,8 +580,8 @@ def generar_acta_pdf(rows, fecha_acta_str, col_map):
     cell_recibe = [
         Paragraph("________________________________________", subtitle_style_center),
         Spacer(1, 4),
-        Paragraph("Nombre: ...................................................", subtitle_style_center),
-        Paragraph("C.I.: ...........................................................", subtitle_style_center),
+        Paragraph(p(receptor["nombre"]) if receptor else "...................................................", subtitle_style_center),
+        Paragraph(f"C.I.: {p(receptor['cedula'])}" if receptor and receptor.get("cedula") else "C.I.: ...........................................................", subtitle_style_center),
         Spacer(1, 4),
         Paragraph("<b>QUIEN RECIBE</b>", subtitle_style_center)
     ]
@@ -360,16 +592,30 @@ def generar_acta_pdf(rows, fecha_acta_str, col_map):
     ]))
     story.append(KeepTogether([firmas_table]))
 
-    doc.build(story)
+    doc.build(story, canvasmaker=NumberedCanvas)
     buffer.seek(0)
     return buffer
 
 
 # ----------------------------------------------------------------------
-# Estado de la sesión: bienes agregados a la acta
+# Estado de la sesión: bienes agregados a la lista
 # ----------------------------------------------------------------------
 if "acta_items" not in st.session_state:
     st.session_state.acta_items = []
+for _clave, _defecto in [("receptor", None), ("receptor_res", []), ("receptor_busqueda", ""), ("receptor_msg", "")]:
+    if _clave not in st.session_state:
+        st.session_state[_clave] = _defecto
+
+
+def reiniciar_receptor():
+    st.session_state.receptor = None
+    st.session_state.receptor_res = []
+    st.session_state.receptor_busqueda = ""
+    st.session_state.receptor_msg = ""
+    st.session_state.pop("receptor_radio", None)
+    for k in ["q_receptor", "rec_nombre_manual", "rec_cedula_manual"]:
+        if k in st.session_state:
+            st.session_state[k] = ""
 
 
 def agregar_a_acta(row_dict, codigo):
@@ -385,6 +631,77 @@ def quitar_de_acta(indice):
 
 def vaciar_acta():
     st.session_state.acta_items = []
+    st.session_state.nombre_acta = ""
+    st.session_state.nombre_acta_w = ""
+    reiniciar_receptor()
+
+
+# ----------------------------------------------------------------------
+# Ingreso con clave (estilo ESBYE)
+# ----------------------------------------------------------------------
+for _clave, _defecto in [("autenticado", False), ("intentos", 0), ("bloqueo_hasta", 0.0)]:
+    if _clave not in st.session_state:
+        st.session_state[_clave] = _defecto
+
+ENCABEZADO = (
+    '<div class="nav">BIENES Y BODEGAS</div>'
+    '<div class="dev">Desarrollado por: Ing. William Cisneros R.</div>'
+    '<div class="red"></div>'
+)
+
+if not st.session_state.autenticado:
+    st.markdown(ENCABEZADO, unsafe_allow_html=True)
+    with st.form("form_login", clear_on_submit=True):
+        st.markdown('<div class="login-t">Datos del usuario</div><div class="t">Clave:</div>', unsafe_allow_html=True)
+        clave_ingresada = st.text_input("Clave", type="password", max_chars=4, placeholder="••••", label_visibility="collapsed")
+        entrar = st.form_submit_button("Ingresar", use_container_width=True)
+    st.markdown('<div class="nota">Clave numérica de 4 dígitos</div>', unsafe_allow_html=True)
+
+    if entrar:
+        ahora = time.time()
+        if ahora < st.session_state.bloqueo_hasta:
+            falta = int(st.session_state.bloqueo_hasta - ahora) + 1
+            st.error(f"Demasiados intentos. Espere {falta} segundos.")
+        elif re.fullmatch(r"\d{4}", clave_ingresada or "") and verificar_clave(clave_ingresada):
+            st.session_state.autenticado = True
+            st.session_state.intentos = 0
+            st.rerun()
+        else:
+            st.session_state.intentos += 1
+            if st.session_state.intentos >= 5:
+                st.session_state.bloqueo_hasta = ahora + 60
+                st.session_state.intentos = 0
+                st.error("Clave incorrecta. Demasiados intentos: espere 60 segundos.")
+            else:
+                st.error("Clave incorrecta.")
+    st.stop()
+
+
+def cerrar_sesion_cb():
+    st.session_state.autenticado = False
+    st.session_state.acta_items = []
+    reiniciar_receptor()
+
+
+def cambiar_clave_cb():
+    actual = st.session_state.get("cc_actual", "")
+    nueva = st.session_state.get("cc_nueva", "")
+    repetida = st.session_state.get("cc_rep", "")
+    if not verificar_clave(actual):
+        msg = ("error", "La clave actual no es correcta.")
+    elif not re.fullmatch(r"\d{4}", nueva):
+        msg = ("error", "La clave nueva debe tener exactamente 4 dígitos numéricos.")
+    elif nueva != repetida:
+        msg = ("error", "Las dos claves nuevas no coinciden.")
+    elif nueva == actual:
+        msg = ("error", "La clave nueva debe ser diferente a la actual.")
+    elif guardar_clave_nueva(nueva):
+        msg = ("ok", "Clave cambiada correctamente.")
+    else:
+        msg = ("error", "No se pudo guardar la clave nueva.")
+    for k in ["cc_actual", "cc_nueva", "cc_rep"]:
+        st.session_state[k] = ""
+    st.session_state.msg_clave = msg
 
 
 # ----------------------------------------------------------------------
@@ -396,7 +713,7 @@ with st.sidebar:
 
     if archivo_subido is not None:
         firma_archivo = f"{archivo_subido.name}-{archivo_subido.size}"
-        # Solo se guarda una vez por archivo; así no se borra la acta en cada clic
+        # Solo se guarda una vez por archivo; así no se borra la lista en cada clic
         if st.session_state.get("ultimo_archivo") != firma_archivo:
             guardado = False
             try:
@@ -409,7 +726,8 @@ with st.sidebar:
                 st.error(f"Error al guardar archivo: {e}")
             if guardado:
                 st.session_state.ultimo_archivo = firma_archivo
-                st.session_state.acta_items = []  # un reporte nuevo reinicia la acta
+                st.session_state.acta_items = []  # un reporte nuevo reinicia la lista
+                reiniciar_receptor()
                 st.rerun()
         else:
             st.success(f"Reporte '{archivo_subido.name}' cargado correctamente.")
@@ -424,6 +742,19 @@ with st.sidebar:
                 st.success("¡Escudo actualizado permanentemente!")
             except Exception as e:
                 st.error(f"Error al guardar el escudo: {e}")
+
+    with st.expander("🔑 Cambiar clave"):
+        st.text_input("Clave actual", type="password", max_chars=4, key="cc_actual", placeholder="Clave actual", label_visibility="collapsed")
+        st.text_input("Clave nueva", type="password", max_chars=4, key="cc_nueva", placeholder="Clave nueva (4 dígitos)", label_visibility="collapsed")
+        st.text_input("Repita la clave nueva", type="password", max_chars=4, key="cc_rep", placeholder="Repita la clave nueva", label_visibility="collapsed")
+        st.button("Cambiar clave", on_click=cambiar_clave_cb, use_container_width=True, key="btn_cambiar_clave")
+        msg_clave = st.session_state.pop("msg_clave", None)
+        if msg_clave:
+            (st.success if msg_clave[0] == "ok" else st.error)(msg_clave[1])
+        if clave_secreta() is None:
+            st.warning("Se está usando la clave temporal. Configure 'clave' en Secrets de Streamlit.")
+
+    st.button("🚪 Cerrar sesión", on_click=cerrar_sesion_cb, use_container_width=True, key="btn_salir")
 
 # ----------------------------------------------------------------------
 # Carga de datos
@@ -463,200 +794,303 @@ if df is not None:
     c_codigo = col_map.get('codigo', cols[0])
     c_serie = col_map.get('serie', cols[4] if len(cols) > 4 else cols[0])
     c_anterior = col_map.get('anterior', c_codigo)
+    custodios = lista_custodios(df, col_map.get('custodio'), col_map.get('cedula'))
 
-    # Encabezado visual
-    st.markdown(f"""
-        <div style="text-align: center; margin-top: 2px; margin-bottom: 6px;">
-            <div style="color: #38BDF8; font-size: 1.25rem; font-weight: bold; line-height: 1.1; margin: 0;">BIENES Y BODEGAS</div>
-            <div style="color: #60A5FA; font-style: italic; font-weight: bold; font-size: 0.78rem; margin: 2px 0 4px 0;">Desarrollado por: Ing. William Cisneros R.</div>
-            <div style="border-top: 1px solid #334155; margin: 4px 0;"></div>
-            <div style="background-color: #0F172A; border: 1px solid #1E293B; padding: 4px 8px; border-radius: 5px; font-size: 0.78rem; color: #94A3B8;">
-                📄 Reporte Activo: <b style="color: #38BDF8;">{display_reporte}</b>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    s_codigo_str = df[c_codigo].astype(str).str.strip() if c_codigo in df.columns else pd.Series([""] * len(df))
+    s_serie_str = df[c_serie].astype(str).str.strip() if c_serie in df.columns else pd.Series([""] * len(df))
+    s_anterior_str = df[c_anterior].astype(str).str.strip() if c_anterior in df.columns else pd.Series([""] * len(df))
 
-    # Etiqueta de búsqueda con espacio para que no quede tapada
-    st.markdown("<p style='color: #F8FAFC; font-weight: bold; font-size: 0.85rem; margin: 12px 0px 12px 0px;'>🔍 Buscar Código / Serie:</p>", unsafe_allow_html=True)
+    def encontrar_bien(termino):
+        """Devuelve la fila del bien (exacta primero, parcial después) o None."""
+        t = str(termino).strip()
+        if not t:
+            return None
+        res_ = df[
+            (s_codigo_str.str.lower() == t.lower()) |
+            (s_serie_str.str.lower() == t.lower()) |
+            (s_anterior_str.str.lower() == t.lower())
+        ]
+        if res_.empty:
+            res_ = df[
+                (s_codigo_str.str.contains(t, case=False, na=False, regex=False)) |
+                (s_serie_str.str.contains(t, case=False, na=False, regex=False))
+            ]
+        return None if res_.empty else res_.iloc[0]
 
     if "busqueda_val" not in st.session_state:
         st.session_state.busqueda_val = ""
 
-    col_input, col_btn = st.columns([4.2, 0.8])
+    def al_buscar_cb():
+        termino = st.session_state.get("mi_buscador", "").strip()
+        st.session_state.busqueda_val = termino
+        if termino and encontrar_bien(termino) is not None:
+            st.session_state.pestana = "Bien"   # salta sola a la pestaña Bien
 
     def limpiar_callback():
         st.session_state.busqueda_val = ""
         st.session_state.mi_buscador = ""
 
-    with col_input:
-        codigo = st.text_input(
-            "",
-            value=st.session_state.busqueda_val,
-            key="mi_buscador",
-            placeholder="Ingrese código o serie..."
-        ).strip()
-
-        if codigo:
-            st.session_state.busqueda_val = codigo
-
-    with col_btn:
-        st.button("🗑️", on_click=limpiar_callback, help="Limpiar búsqueda", use_container_width=True)
-
     termino_busqueda = st.session_state.busqueda_val.strip()
+    fila_bien = encontrar_bien(termino_busqueda) if termino_busqueda else None
 
-    if termino_busqueda:
-        s_codigo_str = df[c_codigo].astype(str).str.strip() if c_codigo in df.columns else pd.Series([""] * len(df))
-        s_serie_str = df[c_serie].astype(str).str.strip() if c_serie in df.columns else pd.Series([""] * len(df))
-        s_anterior_str = df[c_anterior].astype(str).str.strip() if c_anterior in df.columns else pd.Series([""] * len(df))
+    bien_actual = None
+    if fila_bien is not None:
+        bien_actual = {
+            "row": fila_bien.to_dict(),
+            "codigo": limpiar_val(fila_bien.get(c_codigo, '-')),
+            "nombre": limpiar_val(fila_bien.get(col_map.get('nombre'), '-')) if col_map.get('nombre') else '-',
+            "bodega": limpiar_val(fila_bien.get(col_map.get('bodega'), '-')) if col_map.get('bodega') else '-',
+        }
 
-        res = df[
-            (s_codigo_str.str.lower() == termino_busqueda.lower()) |
-            (s_serie_str.str.lower() == termino_busqueda.lower()) |
-            (s_anterior_str.str.lower() == termino_busqueda.lower())
-        ]
+    items = st.session_state.acta_items
 
-        if res.empty:
-            res = df[
-                (s_codigo_str.str.contains(termino_busqueda, case=False, na=False)) |
-                (s_serie_str.str.contains(termino_busqueda, case=False, na=False))
-            ]
+    # Encabezado y pestañas
+    st.markdown(ENCABEZADO, unsafe_allow_html=True)
+    if "pestana" not in st.session_state:
+        st.session_state.pestana = "Buscar"
+    st.radio(
+        "Secciones", ["Buscar", "Bien", "Custodio", "PDF"], key="pestana", horizontal=True,
+        label_visibility="collapsed",
+        format_func=lambda k: f"PDF ({len(items)})" if (k == "PDF" and items) else k
+    )
+    pestana = st.session_state.pestana
 
-        if not res.empty:
-            row = res.iloc[0]
+    def aviso_vacio(texto):
+        st.markdown(f'<div class="nota" style="margin-top:14px">{hesc(texto)}</div>', unsafe_allow_html=True)
 
-            val_bien = limpiar_val(row.get(col_map.get('nombre'), '-')) if col_map.get('nombre') else '-'
-            val_bodega = limpiar_val(row.get(col_map.get('bodega'), '-')) if col_map.get('bodega') else '-'
+    # ------------------------------------------------------------------
+    # Pestaña 1: Buscar
+    # ------------------------------------------------------------------
+    if pestana == "Buscar":
+        st.markdown(fila("Reporte activo", display_reporte) + '<div class="bar">Código a buscar</div>', unsafe_allow_html=True)
+
+        if "mi_buscador" not in st.session_state:
+            st.session_state.mi_buscador = st.session_state.busqueda_val
+
+        col_input, col_btn = st.columns([4.2, 0.8])
+        with col_input:
+            st.text_input("Código o serie", key="mi_buscador", placeholder="Ingrese código o serie...",
+                          label_visibility="collapsed", on_change=al_buscar_cb)
+        with col_btn:
+            st.button("🗑️", on_click=limpiar_callback, help="Limpiar búsqueda", use_container_width=True)
+
+        if bien_actual:
+            st.markdown(
+                '<div style="height:6px"></div>' + fila("Bien", bien_actual["nombre"]) + fila("Bodega", bien_actual["bodega"])
+                + '<div class="nota">Vea los datos completos en la pestaña "Bien".</div>',
+                unsafe_allow_html=True
+            )
+        elif termino_busqueda:
+            st.error(f"❌ No se encontró ningún bien con el código: {termino_busqueda}")
+        else:
+            aviso_vacio("Escriba el código o la serie del bien y pulse Enter.")
+
+    # ------------------------------------------------------------------
+    # Pestaña 2: Bien
+    # ------------------------------------------------------------------
+    elif pestana == "Bien":
+        if not bien_actual:
+            aviso_vacio('Primero busque un bien en la pestaña "Buscar".')
+        else:
+            row = fila_bien
             val_fecha_ingreso = limpiar_val_fecha(row.get(col_map.get('fecha_ingreso'), '-'))
-
             num_valor = valor_numerico(row.get(col_map.get('valor'), '-')) if col_map.get('valor') else None
             val_contable_fmt = formato_dinero(num_valor) if num_valor is not None else limpiar_val(row.get(col_map.get('valor'), '-'))
 
-            st.markdown(f"""
-                <div style="background-color: #064E3B; border-left: 4px solid #10B981; padding: 6px 10px; border-radius: 5px; color: #ECFDF5; font-size: 0.82rem; font-weight: bold; margin-top: 6px; margin-bottom: 4px;">📌 Bien: {val_bien}</div>
-                <div style="background-color: #1E3A8A; border-left: 4px solid #3B82F6; padding: 6px 10px; border-radius: 5px; color: #EFF6FF; font-size: 0.80rem; font-weight: bold; margin-bottom: 6px;">🏢 Bodega: {val_bodega}</div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                '<div style="height:6px"></div>'
+                + fila("Bien", bien_actual["nombre"])
+                + fila("Bodega", bien_actual["bodega"])
+                + fila("Código del bien", bien_actual["codigo"], True)
+                + fila("Código anterior", limpiar_val(row.get(c_anterior, '-')))
+                + fila("Marca / otros", limpiar_val(row.get(col_map.get('marca'), '-')))
+                + fila("Modelo / características", limpiar_val(row.get(col_map.get('modelo'), '-')))
+                + fila("Serie / identificación", limpiar_val(row.get(c_serie, '-')))
+                + fila("Fecha de ingreso", val_fecha_ingreso)
+                + fila("Valor contable", val_contable_fmt, True)
+                + '<div class="red" style="margin-bottom:10px"></div>',
+                unsafe_allow_html=True
+            )
 
-            tab1, tab2 = st.tabs(["🏷️ Datos del Bien", "👤 Datos del Custodio"])
-
-            with tab1:
-                st.markdown(f"""
-                    <div class="info-grid">
-                        <div class="info-card">
-                            <div class="info-label">Código del Bien</div>
-                            <div class="info-val-highlight">{limpiar_val(row.get(c_codigo, '-'))}</div>
-                        </div>
-                        <div class="info-card">
-                            <div class="info-label">Código Anterior</div>
-                            <div class="info-val">{limpiar_val(row.get(c_anterior, '-'))}</div>
-                        </div>
-                        <div class="info-card">
-                            <div class="info-label">Marca/ Otros</div>
-                            <div class="info-val">{limpiar_val(row.get(col_map.get('marca'), '-'))}</div>
-                        </div>
-                        <div class="info-card">
-                            <div class="info-label">Modelo/ Características</div>
-                            <div class="info-val">{limpiar_val(row.get(col_map.get('modelo'), '-'))}</div>
-                        </div>
-                        <div class="info-card-full">
-                            <div class="info-label">Serie/ Identificación</div>
-                            <div class="info-val">{limpiar_val(row.get(c_serie, '-'))}</div>
-                        </div>
-                        <div class="info-card">
-                            <div class="info-label">Fecha de Ingreso</div>
-                            <div class="info-val">{val_fecha_ingreso}</div>
-                        </div>
-                        <div class="info-card">
-                            <div class="info-label">Valor Contable</div>
-                            <div class="info-val-highlight">{val_contable_fmt}</div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-
-            with tab2:
-                st.markdown(f"""
-                    <div class="info-card-full" style="margin-top: 4px; margin-bottom: 5px;">
-                        <div class="info-label">Custodio Actual</div>
-                        <div class="info-val">{limpiar_val(row.get(col_map.get('custodio'), '-'))}</div>
-                    </div>
-                    <div class="info-card-full">
-                        <div class="info-label">Nro de Cédula/ RUC</div>
-                        <div class="info-val">{limpiar_val(row.get(col_map.get('cedula'), '-'))}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-
-            st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
-            st.divider()
-
-            codigo_bien = limpiar_val(row.get(c_codigo, '-'))
-            ya_agregado = codigo_bien in [i["codigo"] for i in st.session_state.acta_items]
-
-            # Botón para juntar este bien con otros en una sola acta
+            ya_agregado = bien_actual["codigo"] in [i["codigo"] for i in items]
             if ya_agregado:
                 st.button("✅ Este bien ya está en la lista", disabled=True, use_container_width=True, key="btn_ya_agregado")
             else:
                 st.button(
                     "➕ Agregar a la lista de varios bienes",
                     on_click=agregar_a_acta,
-                    args=(row.to_dict(), codigo_bien),
+                    args=(bien_actual["row"], bien_actual["codigo"]),
                     use_container_width=True,
                     key="btn_agregar"
                 )
+            if items:
+                st.markdown(f'<div class="nota">En la lista: {len(items)} bien(es) (se ven en la pestaña "PDF")</div>', unsafe_allow_html=True)
 
-            # Acta de solo este bien
-            pdf_individual = generar_acta_pdf([row.to_dict()], fecha_acta_actual, col_map)
-            cod_bien_clean = str(row.get(c_codigo, 'Bien')).replace('/', '_')
-            fecha_nom = datetime.now().strftime("%d-%m-%Y")
-
-            st.download_button(
-                label="📄 Generar e Imprimir Acta PDF Oficial",
-                data=pdf_individual,
-                file_name=f"Acta_{cod_bien_clean}_{fecha_nom}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                key="dl_individual"
-            )
+    # ------------------------------------------------------------------
+    # Pestaña 3: Custodio
+    # ------------------------------------------------------------------
+    elif pestana == "Custodio":
+        if not bien_actual:
+            aviso_vacio('Primero busque un bien en la pestaña "Buscar".')
         else:
-            st.error(f"❌ No se encontró ningún bien con el código: {termino_busqueda}")
+            row = fila_bien
+            st.markdown(
+                '<div style="height:6px"></div>'
+                + fila("Custodio actual", limpiar_val(row.get(col_map.get('custodio'), '-')))
+                + fila("Nro de cédula / RUC", normalizar_cedula(row.get(col_map.get('cedula'), '')) or '-'),
+                unsafe_allow_html=True
+            )
 
     # ------------------------------------------------------------------
-    # Acta en preparación (varios bienes)
+    # Pestaña 4: PDF
     # ------------------------------------------------------------------
-    items = st.session_state.acta_items
-    if items:
-        st.divider()
-        st.markdown("<p style='color: #F8FAFC; font-weight: bold; font-size: 0.85rem; margin: 4px 0px;'>📋 Lista para acta:</p>", unsafe_allow_html=True)
+    else:
+        if not bien_actual and not items:
+            aviso_vacio('Busque un bien o agregue bienes a la lista para generar el acta.')
+        else:
+            if bien_actual:
+                st.markdown(
+                    '<div style="height:6px"></div>' + fila("Bien consultado", f'{bien_actual["codigo"]} - {bien_actual["nombre"]}'),
+                    unsafe_allow_html=True
+                )
 
-        for i, it in enumerate(items):
-            c_item, c_del = st.columns([4.2, 0.8])
-            with c_item:
-                st.markdown(f"<div class='acta-item'><b>{i + 1}.</b> {it['codigo']}</div>", unsafe_allow_html=True)
-            with c_del:
-                st.button("❌", key=f"quitar_{i}_{it['codigo']}", on_click=quitar_de_acta, args=(i,), help="Quitar de la lista", use_container_width=True)
+            # Lista de varios bienes
+            if items:
+                st.markdown('<div class="bar" style="margin-top:12px">Lista para acta</div>', unsafe_allow_html=True)
+                for i, it in enumerate(items):
+                    c_item, c_del = st.columns([4.2, 0.8])
+                    with c_item:
+                        st.markdown(f"<div class='acta-item'><b>{i + 1}.</b> {hesc(str(it['codigo']))}</div>", unsafe_allow_html=True)
+                    with c_del:
+                        st.button("❌", key=f"quitar_{i}_{it['codigo']}", on_click=quitar_de_acta, args=(i,), help="Quitar de la lista", use_container_width=True)
 
-        # Aviso si la lista mezcla bienes de diferentes bodegas
-        conteo_bodegas = {}
-        for it in items:
-            b = limpiar_val(it["row"].get(col_map.get('bodega'), '-')) if col_map.get('bodega') else '-'
-            conteo_bodegas[b] = conteo_bodegas.get(b, 0) + 1
-        if len(conteo_bodegas) > 1:
-            detalle = "\n".join(f"- **{b}**: {n} bien(es)" for b, n in conteo_bodegas.items())
-            st.warning(f"⚠️ **Atención: la lista tiene bienes de DIFERENTES bodegas.** Revise antes de generar el acta:\n\n{detalle}")
+                conteo_bodegas = {}
+                for it in items:
+                    b = limpiar_val(it["row"].get(col_map.get('bodega'), '-')) if col_map.get('bodega') else '-'
+                    conteo_bodegas[b] = conteo_bodegas.get(b, 0) + 1
+                if len(conteo_bodegas) > 1:
+                    detalle = "".join(f"<br>{hesc(b)}: {n} bien(es)" for b, n in conteo_bodegas.items())
+                    st.markdown(
+                        f"<div class='aviso'><b>Atención:</b> la lista tiene bienes de diferentes bodegas.{detalle}</div>",
+                        unsafe_allow_html=True
+                    )
 
-        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+            # Quien recibe
+            def buscar_receptor_cb():
+                termino = st.session_state.get("q_receptor", "").strip()
+                st.session_state.receptor = None
+                st.session_state.receptor_msg = ""
+                st.session_state.pop("receptor_radio", None)
+                encontrados = buscar_custodios(custodios, termino) if termino else []
+                st.session_state.receptor_res = encontrados
+                st.session_state.receptor_busqueda = termino
+                if len(encontrados) == 1:
+                    st.session_state.receptor = encontrados[0]
 
-        pdf_grupal = generar_acta_pdf([it["row"] for it in items], fecha_acta_actual, col_map)
-        st.download_button(
-            label=f"📄 Generar Acta PDF con los {len(items)} bienes de la lista",
-            data=pdf_grupal,
-            file_name=f"Acta_Grupal_{len(items)}_bienes_{datetime.now().strftime('%d-%m-%Y')}.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-            key="dl_grupal"
-        )
-        st.button("🧹 Vaciar lista", on_click=vaciar_acta, use_container_width=True, key="btn_vaciar")
+            def usar_manual_cb():
+                nombre = " ".join(st.session_state.get("rec_nombre_manual", "").split()).upper()
+                if not nombre:
+                    st.session_state.receptor_msg = "Escriba los apellidos y nombres."
+                    return
+                st.session_state.receptor_msg = ""
+                st.session_state.receptor = {
+                    "nombre": nombre,
+                    "cedula": normalizar_cedula(st.session_state.get("rec_cedula_manual", ""))
+                }
+
+            receptor = st.session_state.receptor
+
+            if receptor:
+                st.markdown('<div class="bar" style="margin-top:14px">Quien recibe</div>', unsafe_allow_html=True)
+                st.markdown(fila("Nombre", receptor["nombre"]) + fila("C.I.", receptor["cedula"] or "-"), unsafe_allow_html=True)
+                st.button("Cambiar", on_click=reiniciar_receptor, use_container_width=True, key="btn_cambiar_rec")
+            else:
+                st.markdown('<div class="bar" style="margin-top:14px">¿A quién se asigna?</div>', unsafe_allow_html=True)
+                st.markdown('<div class="t">Escriba número de cédula o apellido:</div>', unsafe_allow_html=True)
+                c_q, c_b = st.columns([4.2, 0.8])
+                with c_q:
+                    st.text_input("Cédula o apellido", key="q_receptor", placeholder="Cédula o apellido...",
+                                  on_change=buscar_receptor_cb, label_visibility="collapsed")
+                with c_b:
+                    st.button("🔍", on_click=buscar_receptor_cb, help="Buscar", use_container_width=True, key="btn_buscar_rec")
+
+                busqueda = st.session_state.receptor_busqueda
+                encontrados = st.session_state.receptor_res
+                if busqueda and encontrados:
+                    st.markdown(f'<div class="t">{len(encontrados)} coincidencias. Elija una:</div>', unsafe_allow_html=True)
+                    etiquetas = [f'{c["nombre"]} - {c["cedula"] or "sin cédula"}' for c in encontrados]
+                    elegido = st.radio("Coincidencias", etiquetas, index=None, key="receptor_radio", label_visibility="collapsed")
+                    if elegido is not None:
+                        st.session_state.receptor = encontrados[etiquetas.index(elegido)]
+                        st.rerun()
+                elif busqueda:
+                    st.markdown(
+                        f'<div class="err"><b>Usuario no existe.</b><br>No se encontró "{hesc(busqueda)}" en el reporte.</div>',
+                        unsafe_allow_html=True
+                    )
+                    st.button("Buscar nuevamente", on_click=reiniciar_receptor, use_container_width=True, key="btn_buscar_nuevo")
+                    st.markdown('<div class="bar" style="margin-top:14px">O digite los datos manualmente</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="t">Apellidos y nombres (obligatorio):</div>', unsafe_allow_html=True)
+                    st.text_input("Apellidos y nombres", key="rec_nombre_manual", placeholder="Ej: ZAMBRANO CEDEÑO LUIS", label_visibility="collapsed")
+                    st.markdown('<div class="t">Cédula (opcional; si escribe 9 dígitos se agrega el 0 inicial):</div>', unsafe_allow_html=True)
+                    st.text_input("Cédula", key="rec_cedula_manual", placeholder="Ej: 0912345678", label_visibility="collapsed")
+                    if st.session_state.receptor_msg:
+                        st.markdown(f'<div class="err">{hesc(st.session_state.receptor_msg)}</div>', unsafe_allow_html=True)
+                    st.button("Usar estos datos", on_click=usar_manual_cb, use_container_width=True, key="btn_manual")
+
+            receptor = st.session_state.receptor
+            if not receptor:
+                st.markdown('<div class="nota">Indique a quién se asigna para habilitar el PDF.</div>', unsafe_allow_html=True)
+
+            # PDF de este bien: Acta_codigo_dd_mm_aaaa.pdf
+            if bien_actual:
+                nombre_individual = nombre_pdf([{"codigo": bien_actual["codigo"]}])
+                datos_ind = generar_acta_pdf([bien_actual["row"]], fecha_acta_actual, col_map, receptor) if receptor else b""
+                st.download_button(
+                    label="📄 Generar e imprimir Acta PDF oficial" if not items else "📄 Acta PDF solo del bien consultado",
+                    data=datos_ind,
+                    file_name=nombre_individual,
+                    mime="application/pdf",
+                    use_container_width=True,
+                    disabled=not receptor,
+                    key="dl_individual"
+                )
+                st.markdown(f'<div class="nota">Se guarda como: {hesc(nombre_individual)}</div>', unsafe_allow_html=True)
+
+            # PDF de varios bienes: Acta_texto_dd_mm_aaaa.pdf
+            if items:
+                if "nombre_acta" not in st.session_state:
+                    st.session_state.nombre_acta = ""
+
+                if len(items) >= 2:
+                    def guardar_nombre_acta_cb():
+                        st.session_state.nombre_acta = st.session_state.get("nombre_acta_w", "")
+
+                    if "nombre_acta_w" not in st.session_state:
+                        st.session_state.nombre_acta_w = st.session_state.nombre_acta
+                    st.markdown('<div class="bar" style="margin-top:14px">Nombre del archivo PDF</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="nota" style="text-align:left">Escriba el nombre del acta y pulse Enter (se guardará como Acta_<b>su texto</b>_fecha):</div>', unsafe_allow_html=True)
+                    st.text_input("Nombre del acta", key="nombre_acta_w", placeholder="Ej: Entrega_Bodega_Diseño",
+                                  on_change=guardar_nombre_acta_cb, label_visibility="collapsed")
+
+                nombre_grupal = nombre_pdf(items)
+                st.markdown(f'<div class="nota">Se guarda como: {hesc(nombre_grupal)}</div>', unsafe_allow_html=True)
+
+                datos_grupal = generar_acta_pdf([it["row"] for it in items], fecha_acta_actual, col_map, receptor) if receptor else b""
+                st.download_button(
+                    label=f"📄 Generar Acta PDF con los {len(items)} bienes de la lista" if len(items) > 1 else "📄 Generar Acta PDF con el bien de la lista",
+                    data=datos_grupal,
+                    file_name=nombre_grupal,
+                    mime="application/pdf",
+                    use_container_width=True,
+                    disabled=not receptor,
+                    key="dl_grupal"
+                )
+                st.button("🧹 Vaciar lista", on_click=vaciar_acta, use_container_width=True, key="btn_vaciar")
 
     # Espacio libre amplio en la parte inferior para celulares
     st.markdown("<div style='height: 80px;'></div>", unsafe_allow_html=True)
 
 else:
     st.warning("⚠️ No se encontró ningún archivo Excel activo en el servidor. Por favor, suba su reporte institucional en formato .xlsx mediante el menú de la barra lateral izquierda.")
+
