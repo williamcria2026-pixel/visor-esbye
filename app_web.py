@@ -196,15 +196,15 @@ st.markdown("""
         .st-key-pestana [data-testid="stWidgetLabel"] { display: none !important; }
         .st-key-pestana div[role="radiogroup"] { gap: 4px !important; }
         .st-key-pestana label:not([data-testid="stWidgetLabel"]) {
-            flex: 1 1 0 !important; min-width: 0 !important;
+            flex: 0 1 auto !important; min-width: 0 !important;
             display: flex !important; align-items: center !important; justify-content: center !important;
             background: #2B1D6B !important; margin: 0 !important;
-            padding: 6px 4px !important; min-height: 34px !important; border-radius: 10px !important; cursor: pointer;
+            padding: 6px 14px !important; min-height: 34px !important; border-radius: 10px !important; cursor: pointer;
         }
         .st-key-pestana label :is(div, span, svg):not(:has([data-testid="stMarkdownContainer"])):not([data-testid="stMarkdownContainer"]):not([data-testid="stMarkdownContainer"] *) { display: none !important; }
         .st-key-pestana div[role="radiogroup"] { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; width: 100% !important; }
-        .st-key-pestana div[role="radiogroup"] > * { flex: 1 1 0 !important; min-width: 0 !important; }
-        .st-key-pestana label:not([data-testid="stWidgetLabel"]) { width: 100% !important; box-sizing: border-box !important; }
+        .st-key-pestana div[role="radiogroup"] > * { flex: 0 1 auto !important; min-width: 0 !important; }
+        .st-key-pestana label:not([data-testid="stWidgetLabel"]) { width: auto !important; box-sizing: border-box !important; }
         .st-key-pestana label:not([data-testid="stWidgetLabel"]) p {
             color: #FFFFFF !important; font-size: 13px !important; margin: 0 !important; white-space: nowrap;
         }
