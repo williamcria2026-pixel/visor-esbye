@@ -192,24 +192,21 @@ st.markdown("""
         /* Pestañas: selector con aspecto de pestañas */
         .st-key-pestana { margin-top: 6px !important; margin-bottom: 8px !important; }
         .st-key-pestana div[role="radiogroup"] { gap: 2px !important; flex-wrap: nowrap !important; width: 100% !important; }
-        /* Pestañas: una fila, círculo a la derecha del texto, círculo azul al seleccionar */
+        /* Pestañas: una fila, esquinas redondeadas, sin círculos (el color indica la activa) */
         .st-key-pestana [data-testid="stWidgetLabel"] { display: none !important; }
+        .st-key-pestana div[role="radiogroup"] { gap: 4px !important; }
         .st-key-pestana label:not([data-testid="stWidgetLabel"]) {
             flex: 1 1 0 !important; min-width: 0 !important;
-            display: flex !important; flex-direction: row-reverse !important;
-            align-items: center !important; justify-content: center !important; gap: 6px !important;
+            display: flex !important; align-items: center !important; justify-content: center !important;
             background: #2B1D6B !important; margin: 0 !important;
-            padding: 12px 4px !important; border-radius: 0 !important; cursor: pointer;
+            padding: 12px 4px !important; border-radius: 10px !important; cursor: pointer;
         }
+        .st-key-pestana label:not([data-testid="stWidgetLabel"]) > :not(input):not(:has([data-testid="stMarkdownContainer"])) { display: none !important; }
         .st-key-pestana label:not([data-testid="stWidgetLabel"]) p {
             color: #FFFFFF !important; font-size: 13px !important; margin: 0 !important; white-space: nowrap;
         }
         .st-key-pestana label:not([data-testid="stWidgetLabel"]):has(input:checked) { background: #55E6FF !important; }
         .st-key-pestana label:not([data-testid="stWidgetLabel"]):has(input:checked) p { color: #1B1250 !important; font-weight: bold !important; }
-        /* Círculo: tamaño reducido; al seleccionar pasa de rojo a azul */
-        .st-key-pestana label > div:first-child { transform: scale(0.8); margin: 0 !important; background-color: #FFFFFF !important; border-color: #FFFFFF !important; }
-        .st-key-pestana label:has(input:checked) > div:first-child { background-color: #16478F !important; border-color: #16478F !important; }
-        .st-key-pestana label:has(input:checked) > div:first-child > div { background-color: #FFFFFF !important; }
 
         /* Corrige la superposición: Streamlit resta 1rem al final de cada bloque markdown */
         div[data-testid="stMarkdown"], div[data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
@@ -226,8 +223,7 @@ st.markdown("""
         .st-key-receptor_radio label p { color: #222222 !important; font-size: 0.92rem !important; margin: 0 !important; }
         .st-key-receptor_radio label:has(input:checked) { background: #DDE9FA !important; border-color: #16478F !important; }
         .st-key-receptor_radio label:has(input:checked) p { color: #16478F !important; font-weight: bold !important; }
-        .st-key-receptor_radio label:has(input:checked) > div:first-child { background-color: #16478F !important; border-color: #16478F !important; }
-        .st-key-receptor_radio label:has(input:checked) > div:first-child > div { background-color: #FFFFFF !important; }
+        .st-key-receptor_radio label:not([data-testid="stWidgetLabel"]) > :not(input):not(:has([data-testid="stMarkdownContainer"])) { display: none !important; }
 
         /* Botones ❌ para quitar bienes de la lista: misma altura que el renglón, en rojo */
         [class*="st-key-quitar_"] button {
