@@ -190,17 +190,46 @@ st.markdown("""
         div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] { margin-top: 16px !important; }
 
         /* Pestañas: selector con aspecto de pestañas */
+        .st-key-pestana { margin-top: 6px !important; margin-bottom: 8px !important; }
         .st-key-pestana div[role="radiogroup"] { gap: 2px !important; flex-wrap: nowrap !important; width: 100% !important; }
-        .st-key-pestana div[role="radiogroup"] > label {
-            flex: 1 1 0 !important; justify-content: center !important; background: #2B1D6B !important;
-            margin: 0 !important; padding: 12px 2px !important; border-radius: 0 !important;
+        .st-key-pestana label {
+            flex: 1 1 0 !important; min-width: 0 !important;
+            display: flex !important; flex-direction: row-reverse !important;   /* círculo a la derecha del texto */
+            align-items: center !important; justify-content: center !important; gap: 5px !important;
+            background: #2B1D6B !important; margin: 0 !important;
+            padding: 12px 4px !important; border-radius: 0 !important;
         }
-        .st-key-pestana div[role="radiogroup"] > label > div:not([data-testid="stMarkdownContainer"]) { display: none !important; }
-        .st-key-pestana div[role="radiogroup"] > label p {
-            color: #FFFFFF !important; font-size: 14px !important; margin: 0 !important; text-align: center;
+        .st-key-pestana label > div:first-child { display: none !important; }   /* sin círculos: el color indica la pestaña activa */
+        .st-key-pestana label p {
+            color: #FFFFFF !important; font-size: 13px !important; margin: 0 !important;
+            text-align: center; white-space: nowrap;
         }
-        .st-key-pestana div[role="radiogroup"] > label:has(input:checked) { background: #55E6FF !important; }
-        .st-key-pestana div[role="radiogroup"] > label:has(input:checked) p { color: #1B1250 !important; font-weight: bold !important; }
+        .st-key-pestana label:has(input:checked) { background: #55E6FF !important; }
+        .st-key-pestana label:has(input:checked) p { color: #1B1250 !important; font-weight: bold !important; }
+
+        /* Corrige la superposición: Streamlit resta 1rem al final de cada bloque markdown */
+        div[data-testid="stMarkdown"], div[data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
+        div[data-testid="stMarkdownContainer"] > div { margin-bottom: 0 !important; }
+        /* Lista de coincidencias ("Elija una"): bloques sin círculo, el color indica la elegida */
+        .st-key-receptor_radio div[role="radiogroup"] { flex-direction: column !important; gap: 2px !important; width: 100% !important; }
+        .st-key-receptor_radio label {
+            display: flex !important; width: 100% !important; margin: 0 !important;
+            padding: 11px 10px !important; border-radius: 3px !important;
+            background: #EDEEF0 !important; border: 1px solid #C3C8D0 !important;
+        }
+        .st-key-receptor_radio label > div:first-child { display: none !important; }
+        .st-key-receptor_radio label p { color: #222222 !important; font-size: 0.92rem !important; margin: 0 !important; }
+        .st-key-receptor_radio label:has(input:checked) { background: #55E6FF !important; border-color: #55E6FF !important; }
+        .st-key-receptor_radio label:has(input:checked) p { color: #1B1250 !important; font-weight: bold !important; }
+
+        /* Botones ❌ para quitar bienes de la lista: misma altura que el renglón, en rojo */
+        [class*="st-key-quitar_"] button {
+            background: #FDE7E9 !important; border: 1px solid #C62828 !important; color: #C62828 !important;
+            min-height: 46px !important;
+        }
+        .acta-item { min-height: 46px; display: flex; align-items: center; box-sizing: border-box; }
+        .acta-item b { margin-right: 6px; }
+
         .nota { text-align: center; font-size: 0.75rem; color: #1B2A78; margin: 6px 0; }
     </style>
 """, unsafe_allow_html=True)
