@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import os
 from datetime import datetime
@@ -655,6 +656,37 @@ ENCABEZADO = (
     '<div class="red"></div>'
 )
 
+# Script que traduce "Press Enter to submit form" -> "Presione Enter para ingresar"
+# conservando el contador (0/4). Se vuelve a aplicar cada vez que Streamlit actualiza el campo.
+TRADUCIR_AYUDA_JS = """
+<script>
+(function () {
+    var doc = window.parent.document;
+    var ORIGINAL = "Press Enter to submit form";
+    var TRADUCIDO = "Presione Enter para ingresar";
+
+    function traducir() {
+        var nodos = doc.querySelectorAll('[data-testid="InputInstructions"]');
+        nodos.forEach(function (nodo) {
+            var walker = doc.createTreeWalker(nodo, NodeFilter.SHOW_TEXT, null);
+            var t;
+            while ((t = walker.nextNode())) {
+                if (t.nodeValue && t.nodeValue.indexOf(ORIGINAL) !== -1) {
+                    t.nodeValue = t.nodeValue.replace(ORIGINAL, TRADUCIDO);
+                }
+            }
+        });
+    }
+
+    traducir();
+    if (!window.parent.__traductorEnter) {
+        window.parent.__traductorEnter = new MutationObserver(traducir);
+        window.parent.__traductorEnter.observe(doc.body, {childList: true, subtree: true, characterData: true});
+    }
+})();
+</script>
+"""
+
 if not st.session_state.autenticado:
     st.markdown(ENCABEZADO, unsafe_allow_html=True)
     with st.form("form_login", clear_on_submit=True):
@@ -662,6 +694,7 @@ if not st.session_state.autenticado:
         clave_ingresada = st.text_input("Clave", type="password", max_chars=4, placeholder="••••", label_visibility="collapsed")
         entrar = st.form_submit_button("Ingresar", use_container_width=True)
     st.markdown('<div class="nota">Clave numérica de 4 dígitos</div>', unsafe_allow_html=True)
+    components.html(TRADUCIR_AYUDA_JS, height=0)
 
     if entrar:
         ahora = time.time()
