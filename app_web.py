@@ -178,9 +178,15 @@ st.markdown("""
         }
         div[data-testid="stForm"] {
             border: 1px solid #8A8A8A !important; border-radius: 0 !important;
-            padding: 14px 16px !important; background: #FFFFFF !important; margin-top: 34px;
+            padding: 24px 16px 28px !important; background: #FFFFFF !important; margin-top: 110px;
         }
-        .login-t { text-align: center; font-weight: bold; font-size: 0.85rem; color: #2B1D6B; margin-bottom: 6px; }
+        .login-t { text-align: center; font-weight: bold; font-size: 0.9rem; color: #2B1D6B; margin-bottom: 26px; }
+        .login-l { text-align: center; font-weight: bold; font-size: 0.8rem; color: #2B1D6B; margin: 0 0 14px; }
+        div[data-testid="stForm"] div[data-testid="stTextInput"],
+        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] {
+            width: 55% !important; min-width: 170px; margin-left: auto !important; margin-right: auto !important;
+        }
+        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] { margin-top: 16px !important; }
 
         /* Pestañas: selector con aspecto de pestañas */
         .st-key-pestana div[role="radiogroup"] { gap: 2px !important; flex-wrap: nowrap !important; width: 100% !important; }
@@ -652,7 +658,7 @@ ENCABEZADO = (
 if not st.session_state.autenticado:
     st.markdown(ENCABEZADO, unsafe_allow_html=True)
     with st.form("form_login", clear_on_submit=True):
-        st.markdown('<div class="login-t">Datos del usuario</div><div class="t">Clave:</div>', unsafe_allow_html=True)
+        st.markdown('<div class="login-t">Datos del usuario</div><div class="login-l">Clave:</div>', unsafe_allow_html=True)
         clave_ingresada = st.text_input("Clave", type="password", max_chars=4, placeholder="••••", label_visibility="collapsed")
         entrar = st.form_submit_button("Ingresar", use_container_width=True)
     st.markdown('<div class="nota">Clave numérica de 4 dígitos</div>', unsafe_allow_html=True)
@@ -1093,4 +1099,5 @@ if df is not None:
 
 else:
     st.warning("⚠️ No se encontró ningún archivo Excel activo en el servidor. Por favor, suba su reporte institucional en formato .xlsx mediante el menú de la barra lateral izquierda.")
+
 
