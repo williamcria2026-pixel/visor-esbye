@@ -199,7 +199,7 @@ st.markdown("""
             flex: 0 1 auto !important; min-width: 0 !important;
             display: flex !important; align-items: center !important; justify-content: center !important;
             background: #2B1D6B !important; margin: 0 !important;
-            padding: 6px 14px !important; min-height: 34px !important; border-radius: 10px !important; cursor: pointer;
+            padding: 6px 9px !important; min-height: 34px !important; border-radius: 10px !important; cursor: pointer;
         }
         .st-key-pestana label :is(div, span, svg):not(:has([data-testid="stMarkdownContainer"])):not([data-testid="stMarkdownContainer"]):not([data-testid="stMarkdownContainer"] *) { display: none !important; }
         .st-key-pestana div[role="radiogroup"] { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; width: 100% !important; }
@@ -237,6 +237,18 @@ st.markdown("""
         .acta-item b { margin-right: 6px; }
 
         .nota { text-align: center; font-size: 0.75rem; color: #1B2A78; margin: 6px 0; }
+
+        /* Textura punteada (estilo ESBYE) en todas las zonas de color */
+        .nav, .st-key-dl_individual button, .st-key-dl_grupal button,
+        .st-key-pestana label:not([data-testid="stWidgetLabel"]) {
+            background-image: radial-gradient(rgba(255,255,255,.16) 1px, transparent 1px) !important;
+            background-size: 4px 4px !important;
+        }
+        .st-key-pestana label:not([data-testid="stWidgetLabel"]):has(input:checked) {
+            background-image: radial-gradient(rgba(255,255,255,.55) 1px, transparent 1px) !important;
+            background-size: 4px 4px !important;
+        }
+
     </style>
 """, unsafe_allow_html=True)
 
@@ -925,7 +937,7 @@ if df is not None:
     st.radio(
         "Secciones", ["Buscar", "Bien", "Custodio", "PDF"], key="pestana", horizontal=True,
         label_visibility="collapsed",
-        format_func=lambda k: f"PDF ({len(items)})" if (k == "PDF" and items) else k
+        format_func=lambda k: (f"Asignar / Reporte ({len(items)})" if items else "Asignar / Reporte") if k == "PDF" else k
     )
     pestana = st.session_state.pestana
 
@@ -998,7 +1010,7 @@ if df is not None:
                     key="btn_agregar"
                 )
             if items:
-                st.markdown(f'<div class="nota">En la lista: {len(items)} bien(es) (se ven en la pestaña "PDF")</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="nota">En la lista: {len(items)} bien(es) (se ven en la pestaña "Asignar / Reporte")</div>', unsafe_allow_html=True)
 
     # ------------------------------------------------------------------
     # Pestaña 3: Custodio
