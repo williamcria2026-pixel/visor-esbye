@@ -63,10 +63,6 @@ st.markdown("""
             div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
                 flex: 0 0 56px !important;
             }
-            /* Columna del botón de cámara: mismo ancho que la papelera */
-            div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:has([class*="st-key-foto_busqueda_"]) {
-                flex: 0 0 56px !important;
-            }
         }
 
         /* Cuadro de texto */
@@ -242,31 +238,6 @@ st.markdown("""
         .acta-item b { margin-right: 6px; }
 
         .nota { text-align: center; font-size: 0.75rem; color: #1B2A78; margin: 6px 0; }
-
-        /* Botón de cámara 📷: el cargador de fotos convertido en un botón compacto */
-        [class*="st-key-foto_busqueda_"] { width: 100% !important; }
-        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploader"] { width: 100% !important; }
-        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzone"] {
-            padding: 0 !important; background: transparent !important; border: none !important;
-            min-height: 46px !important; display: block !important;
-        }
-        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzoneInstructions"],
-        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzone"] svg,
-        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzone"] small,
-        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderFile"],
-        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderFileList"],
-        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderPagination"] {
-            display: none !important;
-        }
-        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzone"] button {
-            width: 100% !important; min-height: 46px !important;
-            background: #EFEFEF !important; border: 1px solid #767676 !important; border-radius: 3px !important;
-            font-size: 0 !important; padding: 0 !important; position: relative;
-        }
-        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzone"] button * { display: none !important; }
-        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzone"] button::after {
-            content: "📷"; font-size: 22px; line-height: 44px; display: block; text-align: center;
-        }
 
         /* Textura punteada (estilo ESBYE) en todas las zonas de color */
         .nav, .st-key-dl_individual button, .st-key-dl_grupal button,
@@ -1004,29 +975,35 @@ if df is not None:
         except Exception as e:
             return [], f"No se pudo leer la foto: {str(e)[:120]}"
 
-    def leer_foto_cb():
-        n = st.session_state.get("foto_n", 0)
-        archivo = st.session_state.get(f"foto_busqueda_{n}")
-        st.session_state.foto_n = n + 1          # nuevo cargador vacío para la próxima foto
-        if archivo is None:
-            return
-        codigos, error = leer_codigo_foto(archivo)
-        if error:
-            st.session_state.foto_msg = ("err", error)
-            return
-        if not codigos:
-            st.session_state.foto_msg = ("err", "No se detectó ningún código en la foto. Acérquese, enfoque bien y evite reflejos.")
-            return
-        for c in codigos:
-            if encontrar_bien(c) is not None:
-                st.session_state.mi_buscador = c
-                st.session_state.busqueda_val = c
+    def procesar_foto(archivo):
+        """Lee la foto y deja el resultado en session_state (se aplica al inicio del siguiente ciclo)."""
+        res = {"codigo": None, "ir_bien": False, "msg": ("err", "No se pudo procesar la foto.")}
+        try:
+            codigos, error = leer_codigo_foto(archivo)
+            if error:
+                res["msg"] = ("err", error)
+            elif not codigos:
+                res["msg"] = ("err", "No se detectó ningún código en la foto. Acérquese, enfoque bien y evite reflejos.")
+            else:
+                for c in codigos:
+                    if encontrar_bien(c) is not None:
+                        res.update(codigo=c, ir_bien=True, msg=("ok", f"Código leído de la foto: {c}"))
+                        break
+                else:
+                    res.update(codigo=codigos[0], msg=("err", f"Se leyó {codigos[0]}, pero no existe en el reporte. Si un dígito está mal, corríjalo en el cuadro y pulse Enter."))
+        except Exception as e:
+            res["msg"] = ("err", f"Error al procesar la foto: {str(e)[:120]}")
+        st.session_state.foto_resultado = res
+
+    # Se aplica el resultado ANTES de crear los campos (así Streamlit permite cambiar sus valores)
+    _res_foto = st.session_state.pop("foto_resultado", None)
+    if _res_foto:
+        st.session_state.foto_msg = _res_foto["msg"]
+        if _res_foto["codigo"]:
+            st.session_state.mi_buscador = _res_foto["codigo"]
+            st.session_state.busqueda_val = _res_foto["codigo"]
+            if _res_foto["ir_bien"]:
                 st.session_state.pestana = "Bien"
-                st.session_state.foto_msg = ("ok", f"Código leído de la foto: {c}")
-                return
-        st.session_state.mi_buscador = codigos[0]
-        st.session_state.busqueda_val = codigos[0]
-        st.session_state.foto_msg = ("err", f"Se leyó {codigos[0]}, pero no existe en el reporte. Si un dígito está mal, corríjalo en el cuadro y pulse Enter.")
 
     termino_busqueda = st.session_state.busqueda_val.strip()
     fila_bien = encontrar_bien(termino_busqueda) if termino_busqueda else None
@@ -1065,19 +1042,22 @@ if df is not None:
         if "mi_buscador" not in st.session_state:
             st.session_state.mi_buscador = st.session_state.busqueda_val
 
-        # Una sola fila: [cuadro de código] [📷 cámara] [🗑️ limpiar]
-        col_input, col_cam, col_btn = st.columns([3.4, 0.8, 0.8])
+        col_input, col_btn = st.columns([4.2, 0.8])
         with col_input:
             st.text_input("Código o serie", key="mi_buscador", placeholder="Ingrese código o serie...",
                           label_visibility="collapsed", on_change=al_buscar_cb)
-        with col_cam:
-            st.file_uploader("Foto del código", type=["jpg", "jpeg", "png"],
-                             key=f"foto_busqueda_{st.session_state.get('foto_n', 0)}",
-                             on_change=leer_foto_cb, label_visibility="collapsed")
         with col_btn:
             st.button("🗑️", on_click=limpiar_callback, help="Limpiar búsqueda", use_container_width=True)
 
-        st.markdown('<div class="t">Pulse 📷 para leer el código con una foto (elija la cámara del celular).</div>', unsafe_allow_html=True)
+        st.markdown('<div class="t">O lea el código con una foto (elija la cámara del celular):</div>', unsafe_allow_html=True)
+        _n_foto = st.session_state.get("foto_n", 0)
+        _foto = st.file_uploader("Foto del código", type=["jpg", "jpeg", "png"],
+                                 key=f"foto_busqueda_{_n_foto}", label_visibility="collapsed")
+        if _foto is not None:
+            with st.spinner("Leyendo el código de la foto..."):
+                procesar_foto(_foto)
+            st.session_state.foto_n = _n_foto + 1   # cargador nuevo y vacío
+            st.rerun()
         _fm = st.session_state.get("foto_msg")
         if _fm:
             if _fm[0] == "ok":
