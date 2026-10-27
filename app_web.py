@@ -5,7 +5,6 @@ import os
 from datetime import datetime
 import re
 import io
-import base64
 import json
 import time
 import hmac
@@ -712,7 +711,7 @@ TRADUCIR_AYUDA_JS = """
 (function () {
     var doc = window.parent.document;
     var EXACTOS = {
-        "Upload": "Subir foto",
+        "Upload": "Subir archivo",
         "Browse files": "Seleccionar archivo",
         "Browse file": "Seleccionar archivo",
         "Drag and drop file here": "Arrastre el archivo aquí",
@@ -955,79 +954,6 @@ if df is not None:
     def limpiar_callback():
         st.session_state.busqueda_val = ""
         st.session_state.mi_buscador = ""
-        st.session_state.foto_msg = None
-
-    # ---- Búsqueda por foto (lee el código escrito/impreso en el bien con Claude) ----
-    MODELO_OCR = "claude-sonnet-5-5"
-    PROMPT_OCR = (
-        "En la foto hay un código de bien (inventario) escrito a mano o impreso sobre una superficie, "
-        "por ejemplo un mueble o equipo. Lea el código numérico completo. "
-        "Si hay varias secuencias de números, devuélvalas todas separadas por comas, la más visible primero. "
-        "Responda solo con los números, sin explicación. Si no se ve ningún código, responda NINGUNO."
-    )
-
-    def leer_codigo_foto(archivo):
-        """Devuelve (lista_de_codigos, mensaje_de_error)."""
-        try:
-            clave_api = st.secrets["ANTHROPIC_API_KEY"]
-        except Exception:
-            return [], "Falta configurar ANTHROPIC_API_KEY en Secrets de Streamlit."
-        try:
-            import anthropic
-            img = PILImage.open(archivo).convert("RGB")
-            img.thumbnail((1600, 1600))
-            buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=88)
-            b64 = base64.b64encode(buf.getvalue()).decode()
-            cliente = anthropic.Anthropic(api_key=clave_api)
-            resp = cliente.messages.create(
-                model=MODELO_OCR,
-                max_tokens=100,
-                messages=[{"role": "user", "content": [
-                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
-                    {"type": "text", "text": PROMPT_OCR},
-                ]}],
-            )
-            texto = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
-            return re.findall(r"\d{5,}", texto), None
-        except Exception as e:
-            return [], f"No se pudo leer la foto: {str(e)[:120]}"
-
-    def procesar_foto(archivo):
-        """Lee la foto y deja el resultado en session_state (se aplica al inicio del siguiente ciclo)."""
-        res = {"codigo": None, "ir_bien": False, "msg": ("err", "No se pudo procesar la foto.")}
-        try:
-            codigos, error = leer_codigo_foto(archivo)
-            if error:
-                res["msg"] = ("err", error)
-            elif not codigos:
-                res["msg"] = ("err", "No se detectó ningún código en la foto. Acérquese, enfoque bien y evite reflejos.")
-            else:
-                for c in codigos:
-                    if encontrar_bien(c) is not None:
-                        res.update(codigo=c, ir_bien=True, msg=("ok", f"Código leído de la foto: {c}"))
-                        break
-                else:
-                    res.update(codigo=codigos[0], msg=("err", f"Se leyó {codigos[0]}, pero no existe en el reporte. Si un dígito está mal, corríjalo en el cuadro y pulse Enter."))
-        except Exception as e:
-            res["msg"] = ("err", f"Error al procesar la foto: {str(e)[:120]}")
-        if res["msg"][0] == "err":
-            try:
-                info = f"{getattr(archivo, 'name', 'foto')}, {archivo.size // 1024} KB"
-            except Exception:
-                info = "foto"
-            res["msg"] = ("err", res["msg"][1] + f" (Foto recibida: {info})")
-        st.session_state.foto_resultado = res
-
-    # Se aplica el resultado ANTES de crear los campos (así Streamlit permite cambiar sus valores)
-    _res_foto = st.session_state.pop("foto_resultado", None)
-    if _res_foto:
-        st.session_state.foto_msg = _res_foto["msg"]
-        if _res_foto["codigo"]:
-            st.session_state.mi_buscador = _res_foto["codigo"]
-            st.session_state.busqueda_val = _res_foto["codigo"]
-            if _res_foto["ir_bien"]:
-                st.session_state.pestana = "Bien"
 
     termino_busqueda = st.session_state.busqueda_val.strip()
     fila_bien = encontrar_bien(termino_busqueda) if termino_busqueda else None
@@ -1072,22 +998,6 @@ if df is not None:
                           label_visibility="collapsed", on_change=al_buscar_cb)
         with col_btn:
             st.button("🗑️", on_click=limpiar_callback, help="Limpiar búsqueda", use_container_width=True)
-
-        st.markdown('<div class="t">O lea el código con una foto (elija la cámara del celular):</div>', unsafe_allow_html=True)
-        _n_foto = st.session_state.get("foto_n", 0)
-        _foto = st.file_uploader("Foto del código", type=["jpg", "jpeg", "png"],
-                                 key=f"foto_busqueda_{_n_foto}", label_visibility="collapsed")
-        if _foto is not None:
-            with st.spinner("Leyendo el código de la foto..."):
-                procesar_foto(_foto)
-            st.session_state.foto_n = _n_foto + 1   # cargador nuevo y vacío
-            st.rerun()
-        _fm = st.session_state.get("foto_msg")
-        if _fm:
-            if _fm[0] == "ok":
-                st.markdown(f'<div class="nota"><b>{hesc(_fm[1])}</b></div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="err">{hesc(_fm[1])}</div>', unsafe_allow_html=True)
 
         if bien_actual:
             st.markdown(
@@ -1308,3 +1218,4 @@ if df is not None:
 
 else:
     st.warning("⚠️ No se encontró ningún archivo Excel activo en el servidor. Por favor, suba su reporte institucional en formato .xlsx mediante el menú de la barra lateral izquierda.")
+
