@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 import re
 import io
+import base64
 import json
 import time
 import hmac
@@ -60,6 +61,10 @@ st.markdown("""
                 min-width: 0px !important;
             }
             div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
+                flex: 0 0 56px !important;
+            }
+            /* Columna del botón de cámara: mismo ancho que la papelera */
+            div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:has([class*="st-key-foto_busqueda_"]) {
                 flex: 0 0 56px !important;
             }
         }
@@ -237,6 +242,31 @@ st.markdown("""
         .acta-item b { margin-right: 6px; }
 
         .nota { text-align: center; font-size: 0.75rem; color: #1B2A78; margin: 6px 0; }
+
+        /* Botón de cámara 📷: el cargador de fotos convertido en un botón compacto */
+        [class*="st-key-foto_busqueda_"] { width: 100% !important; }
+        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploader"] { width: 100% !important; }
+        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzone"] {
+            padding: 0 !important; background: transparent !important; border: none !important;
+            min-height: 46px !important; display: block !important;
+        }
+        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzoneInstructions"],
+        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzone"] svg,
+        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzone"] small,
+        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderFile"],
+        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderFileList"],
+        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderPagination"] {
+            display: none !important;
+        }
+        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzone"] button {
+            width: 100% !important; min-height: 46px !important;
+            background: #EFEFEF !important; border: 1px solid #767676 !important; border-radius: 3px !important;
+            font-size: 0 !important; padding: 0 !important; position: relative;
+        }
+        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzone"] button * { display: none !important; }
+        [class*="st-key-foto_busqueda_"] [data-testid="stFileUploaderDropzone"] button::after {
+            content: "📷"; font-size: 22px; line-height: 44px; display: block; text-align: center;
+        }
 
         /* Textura punteada (estilo ESBYE) en todas las zonas de color */
         .nav, .st-key-dl_individual button, .st-key-dl_grupal button,
@@ -703,24 +733,34 @@ ENCABEZADO = (
     '<div class="red"></div>'
 )
 
-# Script que traduce "Press Enter to submit form" -> "Presione Enter para ingresar"
-# conservando el contador (0/4). Se vuelve a aplicar cada vez que Streamlit actualiza el campo.
+# Script que traduce al español los textos fijos en inglés de Streamlit
+# (ayuda del campo de clave y cargador de archivos), conservando el contador (0/4) y el formato.
+# Se vuelve a aplicar cada vez que Streamlit actualiza la pantalla.
 TRADUCIR_AYUDA_JS = """
 <script>
 (function () {
     var doc = window.parent.document;
-    var ORIGINAL = "Press Enter to submit form";
-    var TRADUCIDO = "Presione Enter para ingresar";
+    var PARES = [
+        ["Press Enter to submit form", "Presione Enter para ingresar"],
+        ["Drag and drop files here", "Arrastre el archivo aquí"],
+        ["Drag and drop file here", "Arrastre el archivo aquí"],
+        ["Browse files", "Seleccionar archivo"],
+        ["Browse file", "Seleccionar archivo"],
+        ["Limit ", "Límite "],
+        [" per file", " por archivo"]
+    ];
+    var SEL = '[data-testid="InputInstructions"], [data-testid="stFileUploaderDropzone"]';
 
     function traducir() {
-        var nodos = doc.querySelectorAll('[data-testid="InputInstructions"]');
-        nodos.forEach(function (nodo) {
+        doc.querySelectorAll(SEL).forEach(function (nodo) {
             var walker = doc.createTreeWalker(nodo, NodeFilter.SHOW_TEXT, null);
             var t;
             while ((t = walker.nextNode())) {
-                if (t.nodeValue && t.nodeValue.indexOf(ORIGINAL) !== -1) {
-                    t.nodeValue = t.nodeValue.replace(ORIGINAL, TRADUCIDO);
-                }
+                var v = t.nodeValue;
+                if (!v) continue;
+                var nuevo = v;
+                PARES.forEach(function (par) { nuevo = nuevo.split(par[0]).join(par[1]); });
+                if (nuevo !== v) t.nodeValue = nuevo;
             }
         });
     }
@@ -868,6 +908,7 @@ for _ruta in ["reporte_activo.xlsx", "reporte_base.xlsx"]:
             break
 
 fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
+components.html(TRADUCIR_AYUDA_JS, height=0)   # traduce también el cargador de archivos tras el ingreso
 
 if df is not None:
     df.columns = df.columns.astype(str).str.strip()
@@ -925,6 +966,67 @@ if df is not None:
     def limpiar_callback():
         st.session_state.busqueda_val = ""
         st.session_state.mi_buscador = ""
+        st.session_state.foto_msg = None
+
+    # ---- Búsqueda por foto (lee el código escrito/impreso en el bien con Claude) ----
+    MODELO_OCR = "claude-sonnet-5-5"
+    PROMPT_OCR = (
+        "En la foto hay un código de bien (inventario) escrito a mano o impreso sobre una superficie, "
+        "por ejemplo un mueble o equipo. Lea el código numérico completo. "
+        "Si hay varias secuencias de números, devuélvalas todas separadas por comas, la más visible primero. "
+        "Responda solo con los números, sin explicación. Si no se ve ningún código, responda NINGUNO."
+    )
+
+    def leer_codigo_foto(archivo):
+        """Devuelve (lista_de_codigos, mensaje_de_error)."""
+        try:
+            clave_api = st.secrets["ANTHROPIC_API_KEY"]
+        except Exception:
+            return [], "Falta configurar ANTHROPIC_API_KEY en Secrets de Streamlit."
+        try:
+            import anthropic
+            img = PILImage.open(archivo).convert("RGB")
+            img.thumbnail((1600, 1600))
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=88)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            cliente = anthropic.Anthropic(api_key=clave_api)
+            resp = cliente.messages.create(
+                model=MODELO_OCR,
+                max_tokens=100,
+                messages=[{"role": "user", "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
+                    {"type": "text", "text": PROMPT_OCR},
+                ]}],
+            )
+            texto = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+            return re.findall(r"\d{5,}", texto), None
+        except Exception as e:
+            return [], f"No se pudo leer la foto: {str(e)[:120]}"
+
+    def leer_foto_cb():
+        n = st.session_state.get("foto_n", 0)
+        archivo = st.session_state.get(f"foto_busqueda_{n}")
+        st.session_state.foto_n = n + 1          # nuevo cargador vacío para la próxima foto
+        if archivo is None:
+            return
+        codigos, error = leer_codigo_foto(archivo)
+        if error:
+            st.session_state.foto_msg = ("err", error)
+            return
+        if not codigos:
+            st.session_state.foto_msg = ("err", "No se detectó ningún código en la foto. Acérquese, enfoque bien y evite reflejos.")
+            return
+        for c in codigos:
+            if encontrar_bien(c) is not None:
+                st.session_state.mi_buscador = c
+                st.session_state.busqueda_val = c
+                st.session_state.pestana = "Bien"
+                st.session_state.foto_msg = ("ok", f"Código leído de la foto: {c}")
+                return
+        st.session_state.mi_buscador = codigos[0]
+        st.session_state.busqueda_val = codigos[0]
+        st.session_state.foto_msg = ("err", f"Se leyó {codigos[0]}, pero no existe en el reporte. Si un dígito está mal, corríjalo en el cuadro y pulse Enter.")
 
     termino_busqueda = st.session_state.busqueda_val.strip()
     fila_bien = encontrar_bien(termino_busqueda) if termino_busqueda else None
@@ -963,12 +1065,25 @@ if df is not None:
         if "mi_buscador" not in st.session_state:
             st.session_state.mi_buscador = st.session_state.busqueda_val
 
-        col_input, col_btn = st.columns([4.2, 0.8])
+        # Una sola fila: [cuadro de código] [📷 cámara] [🗑️ limpiar]
+        col_input, col_cam, col_btn = st.columns([3.4, 0.8, 0.8])
         with col_input:
             st.text_input("Código o serie", key="mi_buscador", placeholder="Ingrese código o serie...",
                           label_visibility="collapsed", on_change=al_buscar_cb)
+        with col_cam:
+            st.file_uploader("Foto del código", type=["jpg", "jpeg", "png"],
+                             key=f"foto_busqueda_{st.session_state.get('foto_n', 0)}",
+                             on_change=leer_foto_cb, label_visibility="collapsed")
         with col_btn:
             st.button("🗑️", on_click=limpiar_callback, help="Limpiar búsqueda", use_container_width=True)
+
+        st.markdown('<div class="t">Pulse 📷 para leer el código con una foto (elija la cámara del celular).</div>', unsafe_allow_html=True)
+        _fm = st.session_state.get("foto_msg")
+        if _fm:
+            if _fm[0] == "ok":
+                st.markdown(f'<div class="nota"><b>{hesc(_fm[1])}</b></div>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="err">{hesc(_fm[1])}</div>', unsafe_allow_html=True)
 
         if bien_actual:
             st.markdown(
