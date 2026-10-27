@@ -848,14 +848,24 @@ with st.sidebar:
 df = None
 display_reporte = "Ninguno"
 
-if os.path.exists("reporte_activo.xlsx"):
-    df = cargar_excel("reporte_activo.xlsx")
-    if df is not None and os.path.exists("nombre_reporte.txt"):
-        try:
-            with open("nombre_reporte.txt", "r", encoding="utf-8") as f:
-                display_reporte = f.read().strip()
-        except Exception:
-            display_reporte = "reporte_activo.xlsx"
+# Orden de búsqueda del reporte:
+# 1) reporte_activo.xlsx  -> el que se sube desde la barra lateral (se pierde si el servidor se reinicia)
+# 2) reporte_base.xlsx    -> copia de respaldo guardada en el repositorio de GitHub (no se pierde)
+for _ruta in ["reporte_activo.xlsx", "reporte_base.xlsx"]:
+    if os.path.exists(_ruta):
+        _df = cargar_excel(_ruta)
+        if _df is not None:
+            df = _df
+            display_reporte = _ruta
+            if _ruta == "reporte_activo.xlsx" and os.path.exists("nombre_reporte.txt"):
+                try:
+                    with open("nombre_reporte.txt", "r", encoding="utf-8") as f:
+                        display_reporte = f.read().strip() or _ruta
+                except Exception:
+                    pass
+            else:
+                display_reporte = "reporte_base.xlsx (respaldo)"
+            break
 
 fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
 
