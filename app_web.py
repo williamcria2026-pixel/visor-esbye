@@ -705,40 +705,58 @@ ENCABEZADO = (
 )
 
 # Script que traduce al español los textos fijos en inglés de Streamlit
-# (ayuda del campo de clave y cargador de archivos), conservando el contador (0/4) y el formato.
-# Se vuelve a aplicar cada vez que Streamlit actualiza la pantalla.
+# (ayuda del campo de clave y cargadores de archivos), conservando el contador (0/4) y el formato.
+# Recorre todo el texto de la página y se vuelve a aplicar cada vez que Streamlit la actualiza.
 TRADUCIR_AYUDA_JS = """
 <script>
 (function () {
     var doc = window.parent.document;
-    var PARES = [
+    var EXACTOS = {
+        "Upload": "Subir foto",
+        "Browse files": "Seleccionar archivo",
+        "Browse file": "Seleccionar archivo",
+        "Drag and drop file here": "Arrastre el archivo aquí",
+        "Drag and drop files here": "Arrastre el archivo aquí"
+    };
+    var PARCIALES = [
         ["Press Enter to submit form", "Presione Enter para ingresar"],
         ["Drag and drop files here", "Arrastre el archivo aquí"],
         ["Drag and drop file here", "Arrastre el archivo aquí"],
         ["Browse files", "Seleccionar archivo"],
-        ["Browse file", "Seleccionar archivo"],
         ["Limit ", "Límite "],
-        [" per file", " por archivo"]
+        ["per file", "por archivo"]
     ];
-    var SEL = '[data-testid="InputInstructions"], [data-testid="stFileUploaderDropzone"]';
+    var pendiente = false;
 
     function traducir() {
-        doc.querySelectorAll(SEL).forEach(function (nodo) {
-            var walker = doc.createTreeWalker(nodo, NodeFilter.SHOW_TEXT, null);
-            var t;
-            while ((t = walker.nextNode())) {
-                var v = t.nodeValue;
-                if (!v) continue;
-                var nuevo = v;
-                PARES.forEach(function (par) { nuevo = nuevo.split(par[0]).join(par[1]); });
-                if (nuevo !== v) t.nodeValue = nuevo;
+        pendiente = false;
+        var walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+            acceptNode: function (n) {
+                var p = n.parentNode && n.parentNode.nodeName;
+                return (p === "SCRIPT" || p === "STYLE" || p === "TEXTAREA") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
             }
         });
+        var t;
+        while ((t = walker.nextNode())) {
+            var v = t.nodeValue;
+            if (!v || !v.trim()) continue;
+            var corto = v.trim();
+            var nuevo = v;
+            if (EXACTOS.hasOwnProperty(corto)) {
+                nuevo = v.replace(corto, EXACTOS[corto]);
+            } else {
+                PARCIALES.forEach(function (par) { nuevo = nuevo.split(par[0]).join(par[1]); });
+            }
+            if (nuevo !== v) t.nodeValue = nuevo;
+        }
+    }
+    function programar() {
+        if (!pendiente) { pendiente = true; window.parent.requestAnimationFrame(traducir); }
     }
 
     traducir();
     if (!window.parent.__traductorEnter) {
-        window.parent.__traductorEnter = new MutationObserver(traducir);
+        window.parent.__traductorEnter = new MutationObserver(programar);
         window.parent.__traductorEnter.observe(doc.body, {childList: true, subtree: true, characterData: true});
     }
 })();
@@ -993,6 +1011,12 @@ if df is not None:
                     res.update(codigo=codigos[0], msg=("err", f"Se leyó {codigos[0]}, pero no existe en el reporte. Si un dígito está mal, corríjalo en el cuadro y pulse Enter."))
         except Exception as e:
             res["msg"] = ("err", f"Error al procesar la foto: {str(e)[:120]}")
+        if res["msg"][0] == "err":
+            try:
+                info = f"{getattr(archivo, 'name', 'foto')}, {archivo.size // 1024} KB"
+            except Exception:
+                info = "foto"
+            res["msg"] = ("err", res["msg"][1] + f" (Foto recibida: {info})")
         st.session_state.foto_resultado = res
 
     # Se aplica el resultado ANTES de crear los campos (así Streamlit permite cambiar sus valores)
