@@ -240,6 +240,9 @@ st.markdown("""
 
         .nota { text-align: center; font-size: 0.75rem; color: #1B2A78; margin: 6px 0; }
 
+        /* Oculta el texto de ayuda de los cargadores ("200MB por archivo...") */
+        [data-testid="stFileUploaderDropzoneInstructions"] { display: none !important; }
+
         /* Textura punteada (estilo ESBYE) en todas las zonas de color */
         .nav, .st-key-dl_individual button, .st-key-dl_grupal button,
         .st-key-pestana label:not([data-testid="stWidgetLabel"]) {
