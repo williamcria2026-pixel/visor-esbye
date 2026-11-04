@@ -950,10 +950,19 @@ with st.sidebar:
     with st.expander("🛡️ Configuración del Escudo"):
         escudo_subido = st.file_uploader("Actualizar archivo escudo.png", type=["png", "jpg", "jpeg"], key="uploader_escudo")
         if escudo_subido is not None:
+            firma_escudo = f"{escudo_subido.name}-{escudo_subido.size}"
             try:
                 with open("escudo.png", "wb") as f:
                     f.write(escudo_subido.getbuffer())
-                st.success("¡Escudo actualizado permanentemente!")
+                if st.session_state.get("ultimo_escudo") != firma_escudo:
+                    st.session_state.ultimo_escudo = firma_escudo
+                    st.session_state.escudo_guardado_remoto = (
+                        subir_remoto("escudo.png", escudo_subido.getvalue()) if remoto_configurado() else False
+                    )
+                if st.session_state.get("escudo_guardado_remoto"):
+                    st.success("¡Escudo actualizado y guardado de forma permanente!")
+                else:
+                    st.warning("Escudo actualizado, pero no se pudo guardar la copia permanente. Se perderá si la aplicación se reinicia.")
             except Exception as e:
                 st.error(f"Error al guardar el escudo: {e}")
 
@@ -977,6 +986,18 @@ with st.sidebar:
 # ----------------------------------------------------------------------
 df = None
 display_reporte = "Ninguno"
+
+# Escudo: si existe una copia permanente en el repositorio privado, se usa esa
+# (una sola vez por sesión). Así el escudo subido no se pierde al reiniciar.
+if not st.session_state.get("escudo_remoto_intentado"):
+    st.session_state.escudo_remoto_intentado = True
+    _bytes_escudo = bajar_remoto("escudo.png")
+    if _bytes_escudo:
+        try:
+            with open("escudo.png", "wb") as f:
+                f.write(_bytes_escudo)
+        except Exception:
+            pass
 
 # Si el servidor se reinició y no hay reporte local, se recupera la copia permanente
 # del repositorio privado de datos (una sola vez por sesión).
