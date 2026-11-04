@@ -9,7 +9,9 @@ import json
 import time
 import hmac
 import hashlib
+import base64
 import unicodedata
+import requests
 from html import escape as hesc
 from xml.sax.saxutils import escape
 from PIL import Image as PILImage
@@ -412,6 +414,9 @@ def buscar_custodios(custodios, termino):
     return sorted(res, key=lambda c: c["nombre"])[:15]
 
 
+# ----------------------------------------------------------------------
+# Clave de ingreso: guardada de forma permanente en un Gist secreto de GitHub
+# ----------------------------------------------------------------------
 ARCHIVO_CLAVE = "clave_config.json"
 
 
@@ -428,39 +433,121 @@ def clave_base():
     return clave_secreta() or "1234"
 
 
-def _huella(texto):
-    return hashlib.sha256(texto.encode("utf-8")).hexdigest()
-
-
 def _hash_clave(clave, sal_hex):
     return hashlib.pbkdf2_hmac("sha256", clave.encode("utf-8"), bytes.fromhex(sal_hex), 120000).hex()
 
 
-def verificar_clave(ingresada):
-    """La clave cambiada desde la aplicación vale mientras no se modifique la de Secrets."""
-    ingresada = str(ingresada)
-    base = clave_base()
+def _gist():
+    """Token y código del Gist (desde Secrets). Si faltan, devuelve (None, None)."""
     try:
-        if os.path.exists(ARCHIVO_CLAVE):
-            with open(ARCHIVO_CLAVE, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-            if cfg.get("origen") == _huella(base):
-                return hmac.compare_digest(_hash_clave(ingresada, cfg["sal"]), cfg["hash"])
+        tok = str(st.secrets["github_token"]).strip()
+        gid = str(st.secrets["gist_id"]).strip()
+        if tok and gid:
+            return tok, gid
     except Exception:
         pass
-    return hmac.compare_digest(ingresada.encode("utf-8"), base.encode("utf-8"))
+    return None, None
 
 
-def guardar_clave_nueva(nueva):
-    """Guarda la clave cifrada (no en texto visible)."""
+def leer_cfg():
+    """Lee la clave guardada: del Gist si está configurado; si no, del archivo local."""
+    tok, gid = _gist()
     try:
-        sal = os.urandom(16).hex()
-        cfg = {"sal": sal, "hash": _hash_clave(nueva, sal), "origen": _huella(clave_base())}
+        if tok:
+            r = requests.get(f"https://api.github.com/gists/{gid}",
+                             headers={"Authorization": f"Bearer {tok}"}, timeout=8)
+            r.raise_for_status()
+            texto = r.json()["files"][ARCHIVO_CLAVE]["content"]
+            return json.loads(texto) or None
+        if os.path.exists(ARCHIVO_CLAVE):
+            with open(ARCHIVO_CLAVE, "r", encoding="utf-8") as f:
+                return json.load(f) or None
+    except Exception:
+        pass
+    return None
+
+
+def escribir_cfg(cfg):
+    """Guarda la clave cifrada en el Gist (o en archivo local si no hay Gist)."""
+    tok, gid = _gist()
+    try:
+        if tok:
+            r = requests.patch(f"https://api.github.com/gists/{gid}",
+                               headers={"Authorization": f"Bearer {tok}"}, timeout=8,
+                               json={"files": {ARCHIVO_CLAVE: {"content": json.dumps(cfg)}}})
+            return r.ok
         with open(ARCHIVO_CLAVE, "w", encoding="utf-8") as f:
             json.dump(cfg, f)
         return True
     except Exception:
         return False
+
+
+def verificar_clave(ingresada):
+    """Si hay una clave guardada, esa manda hasta que se cambie; si no, vale la de Secrets."""
+    ingresada = str(ingresada)
+    cfg = leer_cfg()
+    if cfg and "sal" in cfg and "hash" in cfg:
+        try:
+            return hmac.compare_digest(_hash_clave(ingresada, cfg["sal"]), cfg["hash"])
+        except Exception:
+            pass
+    return hmac.compare_digest(ingresada.encode("utf-8"), clave_base().encode("utf-8"))
+
+
+def guardar_clave_nueva(nueva):
+    """Guarda la clave cifrada (no en texto visible)."""
+    sal = os.urandom(16).hex()
+    return escribir_cfg({"sal": sal, "hash": _hash_clave(nueva, sal)})
+
+
+# ----------------------------------------------------------------------
+# Copia permanente del reporte Excel en un repositorio privado de GitHub
+# ----------------------------------------------------------------------
+def _gh():
+    """Cabecera con el token y nombre del repositorio de datos (desde Secrets)."""
+    try:
+        tok = str(st.secrets["github_token"]).strip()
+        repo = str(st.secrets["repo_datos"]).strip()
+        if tok and repo:
+            return {"Authorization": f"Bearer {tok}"}, repo
+    except Exception:
+        pass
+    return None, None
+
+
+def remoto_configurado():
+    return _gh()[0] is not None
+
+
+def subir_remoto(ruta, contenido):
+    """Sube (o reemplaza) un archivo en el repositorio de datos. Devuelve True si salió bien."""
+    h, repo = _gh()
+    if not h:
+        return False
+    try:
+        url = f"https://api.github.com/repos/{repo}/contents/{ruta}"
+        r = requests.get(url, headers=h, timeout=15)
+        datos = {"message": "actualizar", "content": base64.b64encode(contenido).decode()}
+        if r.status_code == 200:
+            datos["sha"] = r.json().get("sha")
+        return requests.put(url, headers=h, json=datos, timeout=90).ok
+    except Exception:
+        return False
+
+
+def bajar_remoto(ruta):
+    """Descarga un archivo del repositorio de datos. Devuelve bytes o None."""
+    h, repo = _gh()
+    if not h:
+        return None
+    try:
+        h2 = dict(h, Accept="application/vnd.github.raw")
+        r = requests.get(f"https://api.github.com/repos/{repo}/contents/{ruta}",
+                         headers=h2, timeout=60)
+        return r.content if r.ok else None
+    except Exception:
+        return None
 
 
 # ----------------------------------------------------------------------
@@ -839,12 +926,25 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Error al guardar archivo: {e}")
             if guardado:
+                # Copia permanente en el repositorio privado (sobrevive a los reinicios)
+                if remoto_configurado():
+                    ok_xlsx = subir_remoto("reporte.xlsx", archivo_subido.getvalue())
+                    ok_nombre = subir_remoto("nombre_reporte.txt", archivo_subido.name.encode("utf-8"))
+                    if not (ok_xlsx and ok_nombre):
+                        st.session_state.aviso_remoto = (
+                            "El reporte se cargó, pero no se pudo guardar la copia permanente. "
+                            "Se perderá si la aplicación se reinicia. Revise el token y 'repo_datos' en Secrets."
+                        )
                 st.session_state.ultimo_archivo = firma_archivo
                 st.session_state.acta_items = []  # un reporte nuevo reinicia la lista
                 reiniciar_receptor()
                 st.rerun()
         else:
             st.success(f"Reporte '{archivo_subido.name}' cargado correctamente.")
+
+    _aviso_remoto = st.session_state.pop("aviso_remoto", None)
+    if _aviso_remoto:
+        st.warning(_aviso_remoto)
 
     st.divider()
     with st.expander("🛡️ Configuración del Escudo"):
@@ -867,6 +967,8 @@ with st.sidebar:
             (st.success if msg_clave[0] == "ok" else st.error)(msg_clave[1])
         if clave_secreta() is None:
             st.warning("Se está usando la clave temporal. Configure 'clave' en Secrets de Streamlit.")
+        if _gist()[0] is None:
+            st.warning("La clave nueva no es permanente: configure 'github_token' y 'gist_id' en Secrets.")
 
     st.button("🚪 Cerrar sesión", on_click=cerrar_sesion_cb, use_container_width=True, key="btn_salir")
 
@@ -876,9 +978,25 @@ with st.sidebar:
 df = None
 display_reporte = "Ninguno"
 
+# Si el servidor se reinició y no hay reporte local, se recupera la copia permanente
+# del repositorio privado de datos (una sola vez por sesión).
+if not os.path.exists("reporte_activo.xlsx") and not st.session_state.get("remoto_intentado"):
+    st.session_state.remoto_intentado = True
+    _bytes_xlsx = bajar_remoto("reporte.xlsx")
+    if _bytes_xlsx:
+        try:
+            with open("reporte_activo.xlsx", "wb") as f:
+                f.write(_bytes_xlsx)
+            _bytes_nombre = bajar_remoto("nombre_reporte.txt")
+            if _bytes_nombre:
+                with open("nombre_reporte.txt", "wb") as f:
+                    f.write(_bytes_nombre)
+        except Exception:
+            pass
+
 # Orden de búsqueda del reporte:
-# 1) reporte_activo.xlsx  -> el que se sube desde la barra lateral (se pierde si el servidor se reinicia)
-# 2) reporte_base.xlsx    -> copia de respaldo guardada en el repositorio de GitHub (no se pierde)
+# 1) reporte_activo.xlsx  -> el subido desde la barra lateral (o recuperado del repositorio privado)
+# 2) reporte_base.xlsx    -> copia de respaldo guardada en el repositorio de GitHub de la aplicación
 for _ruta in ["reporte_activo.xlsx", "reporte_base.xlsx"]:
     if os.path.exists(_ruta):
         _df = cargar_excel(_ruta)
