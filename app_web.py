@@ -948,12 +948,22 @@ with st.sidebar:
                 if remoto_configurado():
                     ok_xlsx = subir_remoto("reporte.xlsx", archivo_subido.getvalue())
                     ok_nombre = subir_remoto("nombre_reporte.txt", archivo_subido.name.encode("utf-8"))
-                    if not (ok_xlsx and ok_nombre):
+                    if ok_xlsx and ok_nombre:
+                        st.session_state.ok_remoto = (
+                            "✅ Copia permanente guardada en el programa. "
+                            "El reporte se mantendrá aunque la aplicación se reinicie."
+                        )
+                    else:
                         st.session_state.aviso_remoto = (
                             "El reporte se cargó, pero no se pudo guardar la copia permanente. "
                             "Se perderá si la aplicación se reinicia. Motivo: "
                             + st.session_state.get("error_remoto", "desconocido")
                         )
+                else:
+                    st.session_state.aviso_remoto = (
+                        "El reporte se cargó, pero falta configurar 'github_token' y 'repo_datos' "
+                        "en Secrets para guardar la copia permanente."
+                    )
                 st.session_state.ultimo_archivo = firma_archivo
                 st.session_state.acta_items = []  # un reporte nuevo reinicia la lista
                 reiniciar_receptor()
@@ -961,6 +971,9 @@ with st.sidebar:
         else:
             st.success(f"Reporte '{archivo_subido.name}' cargado correctamente.")
 
+    _ok_remoto = st.session_state.pop("ok_remoto", None)
+    if _ok_remoto:
+        st.success(_ok_remoto)
     _aviso_remoto = st.session_state.pop("aviso_remoto", None)
     if _aviso_remoto:
         st.warning(_aviso_remoto)
@@ -979,7 +992,7 @@ with st.sidebar:
                         subir_remoto("escudo.png", escudo_subido.getvalue()) if remoto_configurado() else False
                     )
                 if st.session_state.get("escudo_guardado_remoto"):
-                    st.success("¡Escudo actualizado y guardado de forma permanente!")
+                    st.success("✅ Copia permanente guardada en el programa. El escudo se mantendrá aunque la aplicación se reinicie.")
                 else:
                     st.warning(
                         "Escudo actualizado, pero no se pudo guardar la copia permanente. "
