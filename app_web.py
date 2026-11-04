@@ -524,15 +524,33 @@ def subir_remoto(ruta, contenido):
     """Sube (o reemplaza) un archivo en el repositorio de datos. Devuelve True si salió bien."""
     h, repo = _gh()
     if not h:
+        st.session_state.error_remoto = "Faltan 'github_token' o 'repo_datos' en Secrets."
+        return False
+    token = h["Authorization"].replace("Bearer ", "")
+    if "TU_TOKEN" in token or not token.startswith(("ghp_", "github_pat_")):
+        st.session_state.error_remoto = (
+            "El 'github_token' en Secrets no es un token real (parece el texto de ejemplo o está incompleto)."
+        )
         return False
     try:
         url = f"https://api.github.com/repos/{repo}/contents/{ruta}"
         r = requests.get(url, headers=h, timeout=15)
+        if r.status_code in (401, 403):
+            st.session_state.error_remoto = f"GitHub respondió {r.status_code}: {r.json().get('message', '')}"
+            return False
         datos = {"message": "actualizar", "content": base64.b64encode(contenido).decode()}
         if r.status_code == 200:
             datos["sha"] = r.json().get("sha")
-        return requests.put(url, headers=h, json=datos, timeout=90).ok
-    except Exception:
+        r2 = requests.put(url, headers=h, json=datos, timeout=90)
+        if not r2.ok:
+            try:
+                detalle = r2.json().get("message", "")
+            except Exception:
+                detalle = ""
+            st.session_state.error_remoto = f"GitHub respondió {r2.status_code}: {detalle}"
+        return r2.ok
+    except Exception as e:
+        st.session_state.error_remoto = f"No se pudo conectar con GitHub: {e}"
         return False
 
 
@@ -933,7 +951,8 @@ with st.sidebar:
                     if not (ok_xlsx and ok_nombre):
                         st.session_state.aviso_remoto = (
                             "El reporte se cargó, pero no se pudo guardar la copia permanente. "
-                            "Se perderá si la aplicación se reinicia. Revise el token y 'repo_datos' en Secrets."
+                            "Se perderá si la aplicación se reinicia. Motivo: "
+                            + st.session_state.get("error_remoto", "desconocido")
                         )
                 st.session_state.ultimo_archivo = firma_archivo
                 st.session_state.acta_items = []  # un reporte nuevo reinicia la lista
@@ -962,7 +981,11 @@ with st.sidebar:
                 if st.session_state.get("escudo_guardado_remoto"):
                     st.success("¡Escudo actualizado y guardado de forma permanente!")
                 else:
-                    st.warning("Escudo actualizado, pero no se pudo guardar la copia permanente. Se perderá si la aplicación se reinicia.")
+                    st.warning(
+                        "Escudo actualizado, pero no se pudo guardar la copia permanente. "
+                        "Se perderá si la aplicación se reinicia. Motivo: "
+                        + st.session_state.get("error_remoto", "desconocido")
+                    )
             except Exception as e:
                 st.error(f"Error al guardar el escudo: {e}")
 
