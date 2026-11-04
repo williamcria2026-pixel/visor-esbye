@@ -548,10 +548,39 @@ def subir_remoto(ruta, contenido):
             except Exception:
                 detalle = ""
             st.session_state.error_remoto = f"GitHub respondió {r2.status_code}: {detalle}"
+        if r2.ok:
+            st.session_state.remoto_lista = None
         return r2.ok
     except Exception as e:
         st.session_state.error_remoto = f"No se pudo conectar con GitHub: {e}"
         return False
+
+
+def archivos_guardados():
+    """Nombres de los archivos guardados en el repositorio privado (se consulta una vez y se recuerda).
+    Devuelve un conjunto, o None si no se pudo consultar."""
+    if st.session_state.get("remoto_lista") is not None:
+        return st.session_state.remoto_lista
+    h, repo = _gh()
+    if not h:
+        return None
+    try:
+        r = requests.get(f"https://api.github.com/repos/{repo}/contents/", headers=h, timeout=15)
+        if r.ok:
+            st.session_state.remoto_lista = {x.get("name", "") for x in r.json()}
+            return st.session_state.remoto_lista
+        st.session_state.error_remoto = f"GitHub respondió {r.status_code}: {r.json().get('message', '')}"
+    except Exception as e:
+        st.session_state.error_remoto = f"No se pudo conectar con GitHub: {e}"
+    return None
+
+
+def clave_guardada():
+    """True si hay una clave cambiada y guardada de forma permanente (se consulta una vez)."""
+    if st.session_state.get("clave_estado") is None:
+        cfg = leer_cfg()
+        st.session_state.clave_estado = bool(cfg and "hash" in cfg)
+    return st.session_state.clave_estado
 
 
 def bajar_remoto(ruta):
@@ -915,6 +944,7 @@ def cambiar_clave_cb():
     elif nueva == actual:
         msg = ("error", "La clave nueva debe ser diferente a la actual.")
     elif guardar_clave_nueva(nueva):
+        st.session_state.clave_estado = None
         msg = ("ok", "Clave cambiada correctamente.")
     else:
         msg = ("error", "No se pudo guardar la clave nueva.")
@@ -928,7 +958,7 @@ def cambiar_clave_cb():
 # ----------------------------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Opciones")
-    archivo_subido = st.file_uploader("Subir nuevo reporte (.xlsx)", type=["xlsx", "xls"])
+    archivo_subido = st.file_uploader("Subir archivo (Excel)", type=["xlsx", "xls"])
 
     if archivo_subido is not None:
         firma_archivo = f"{archivo_subido.name}-{archivo_subido.size}"
@@ -978,29 +1008,30 @@ with st.sidebar:
     if _aviso_remoto:
         st.warning(_aviso_remoto)
 
+    escudo_subido = st.file_uploader("Subir imagen (escudo)", type=["png", "jpg", "jpeg"], key="uploader_escudo")
+    if escudo_subido is not None:
+        firma_escudo = f"{escudo_subido.name}-{escudo_subido.size}"
+        try:
+            with open("escudo.png", "wb") as f:
+                f.write(escudo_subido.getbuffer())
+            if st.session_state.get("ultimo_escudo") != firma_escudo:
+                st.session_state.ultimo_escudo = firma_escudo
+                st.session_state.escudo_guardado_remoto = (
+                    subir_remoto("escudo.png", escudo_subido.getvalue()) if remoto_configurado() else False
+                )
+            if st.session_state.get("escudo_guardado_remoto"):
+                st.success("✅ Copia permanente guardada en el programa. El escudo se mantendrá aunque la aplicación se reinicie.")
+            else:
+                st.warning(
+                    "Escudo actualizado, pero no se pudo guardar la copia permanente. "
+                    "Se perderá si la aplicación se reinicia. Motivo: "
+                    + st.session_state.get("error_remoto", "desconocido")
+                )
+        except Exception as e:
+            st.error(f"Error al guardar el escudo: {e}")
+
     st.divider()
-    with st.expander("🛡️ Configuración del Escudo"):
-        escudo_subido = st.file_uploader("Actualizar archivo escudo.png", type=["png", "jpg", "jpeg"], key="uploader_escudo")
-        if escudo_subido is not None:
-            firma_escudo = f"{escudo_subido.name}-{escudo_subido.size}"
-            try:
-                with open("escudo.png", "wb") as f:
-                    f.write(escudo_subido.getbuffer())
-                if st.session_state.get("ultimo_escudo") != firma_escudo:
-                    st.session_state.ultimo_escudo = firma_escudo
-                    st.session_state.escudo_guardado_remoto = (
-                        subir_remoto("escudo.png", escudo_subido.getvalue()) if remoto_configurado() else False
-                    )
-                if st.session_state.get("escudo_guardado_remoto"):
-                    st.success("✅ Copia permanente guardada en el programa. El escudo se mantendrá aunque la aplicación se reinicie.")
-                else:
-                    st.warning(
-                        "Escudo actualizado, pero no se pudo guardar la copia permanente. "
-                        "Se perderá si la aplicación se reinicia. Motivo: "
-                        + st.session_state.get("error_remoto", "desconocido")
-                    )
-            except Exception as e:
-                st.error(f"Error al guardar el escudo: {e}")
+    caja_estado = st.container()
 
     with st.expander("🔑 Cambiar clave"):
         st.text_input("Clave actual", type="password", max_chars=4, key="cc_actual", placeholder="Clave actual", label_visibility="collapsed")
@@ -1069,6 +1100,29 @@ for _ruta in ["reporte_activo.xlsx", "reporte_base.xlsx"]:
             else:
                 display_reporte = "reporte_base.xlsx (respaldo)"
             break
+
+with caja_estado:
+    st.markdown("**📦 Guardado en el programa**")
+    _lista = archivos_guardados()
+    if not remoto_configurado():
+        st.markdown("⚠️ Sin copia permanente: falta configurar Secrets.")
+    elif _lista is None:
+        st.markdown("⚠️ No se pudo consultar. " + st.session_state.get("error_remoto", ""))
+    else:
+        if "reporte.xlsx" in _lista:
+            st.markdown(f"✅ **Reporte:** {hesc(display_reporte)} (permanente)")
+        else:
+            st.markdown(f"⚠️ **Reporte:** {hesc(display_reporte)} (solo temporal)")
+        if "escudo.png" in _lista:
+            st.markdown("✅ **Escudo:** guardado (permanente)")
+        else:
+            st.markdown("⚠️ **Escudo:** sin copia permanente")
+    if _gist()[0] is None:
+        st.markdown("⚠️ **Clave:** sin copia permanente")
+    elif clave_guardada():
+        st.markdown("✅ **Clave:** guardada (permanente)")
+    else:
+        st.markdown("ℹ️ **Clave:** la de Secrets (aún no cambiada)")
 
 fecha_acta_actual = datetime.now().strftime("%d/%m/%Y")
 components.html(TRADUCIR_AYUDA_JS, height=0)   # traduce también el cargador de archivos tras el ingreso
