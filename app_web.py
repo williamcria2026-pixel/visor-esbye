@@ -1111,6 +1111,25 @@ with caja_estado:
         st.markdown("⚠️ Sin copia permanente: falta configurar Secrets.")
     elif _lista is None:
         st.markdown("⚠️ No se pudo consultar. " + st.session_state.get("error_remoto", ""))
+        try:
+            _t = str(st.secrets["github_token"])
+            _g = str(st.secrets["gist_id"])
+            _problemas = []
+            if _t != _t.strip() or '"' in _t or "'" in _t or " " in _t:
+                _problemas.append("el token tiene espacios o comillas de más")
+            if not _t.startswith("ghp_"):
+                _problemas.append("el token no empieza con ghp_")
+            if len(_t.strip()) != 40:
+                _problemas.append(f"el token mide {len(_t.strip())} caracteres y debe medir 40")
+            if len(_g.strip()) != 32:
+                _problemas.append(f"gist_id mide {len(_g.strip())} caracteres y debe medir 32")
+            if _problemas:
+                st.markdown("🔎 **Revisión:** " + "; ".join(_problemas) + ".")
+            else:
+                st.markdown("🔎 **Revisión:** el formato del token es correcto, pero GitHub lo rechaza: "
+                            "probablemente es un token anterior que ya fue regenerado.")
+        except Exception:
+            pass
     else:
         if "reporte.xlsx" in _lista:
             st.markdown(f"✅ **Reporte:** {hesc(display_reporte)} (permanente)")
