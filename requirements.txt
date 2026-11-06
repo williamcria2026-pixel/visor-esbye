@@ -4,3 +4,4 @@ openpyxl
 python-calamine
 reportlab
 pillow
+zxing-cpp
