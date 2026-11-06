@@ -809,90 +809,6 @@ def reiniciar_receptor():
             st.session_state[k] = ""
 
 
-# ----------------------------------------------------------------------
-# Búsqueda por foto: código de barras (gratis) y código escrito a mano (IA, opcional)
-# ----------------------------------------------------------------------
-def leer_codigos_barras(imagen_bytes):
-    """Lee códigos de barras / QR de una foto. Devuelve (lista_de_textos, error)."""
-    try:
-        import zxingcpp
-    except Exception:
-        return [], "falta_libreria"
-    try:
-        img = PILImage.open(io.BytesIO(imagen_bytes)).convert("RGB")
-        img.thumbnail((2400, 2400))
-        vistos, lista = set(), []
-        for r in zxingcpp.read_barcodes(img):
-            t = (r.text or "").strip()
-            if t and t not in vistos:
-                vistos.add(t)
-                lista.append(t)
-        return lista, None
-    except Exception:
-        return [], "error_lectura"
-
-
-def leer_manuscrito_ia(imagen_bytes):
-    """Lee un código escrito a mano con la API de Claude (solo si hay anthropic_api_key en Secrets).
-    Devuelve (codigo_o_None, error_o_None)."""
-    try:
-        clave_api = str(st.secrets["anthropic_api_key"]).strip()
-        if not clave_api:
-            raise KeyError
-    except Exception:
-        return None, "sin_clave"
-    try:
-        modelo = str(st.secrets.get("anthropic_modelo", "claude-haiku-5-5")).strip() or "claude-haiku-5-5"
-    except Exception:
-        modelo = "claude-haiku-5-5"
-    try:
-        img = PILImage.open(io.BytesIO(imagen_bytes)).convert("RGB")
-        img.thumbnail((1600, 1600))
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=85)
-        datos = {
-            "model": modelo,
-            "max_tokens": 60,
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
-                                                 "data": base64.b64encode(buf.getvalue()).decode()}},
-                    {"type": "text", "text": (
-                        "La imagen muestra la etiqueta de un bien institucional con un código de inventario "
-                        "escrito a mano con marcador (o impreso). Responde ÚNICAMENTE con el código, sin espacios "
-                        "ni explicaciones. Si hay varios números, devuelve el que parezca el código del bien. "
-                        "Si no se lee con claridad, responde exactamente: NINGUNO")},
-                ],
-            }],
-        }
-        r = requests.post("https://api.anthropic.com/v1/messages",
-                          headers={"x-api-key": clave_api, "anthropic-version": "2023-06-01",
-                                   "content-type": "application/json"},
-                          json=datos, timeout=40)
-        if not r.ok:
-            return None, f"api_{r.status_code}"
-        texto = "".join(b.get("text", "") for b in r.json().get("content", []) if b.get("type") == "text").strip()
-        texto = re.sub(r"[^A-Za-z0-9\-./]", "", texto)
-        if not texto or texto.upper() == "NINGUNO":
-            return None, "ilegible"
-        return texto, None
-    except Exception:
-        return None, "error_ia"
-
-
-def leer_foto_bien(imagen_bytes):
-    """Primero intenta código de barras; si no hay, intenta leer el escrito a mano.
-    Devuelve (lista_de_codigos, fuente, error)."""
-    codigos, err = leer_codigos_barras(imagen_bytes)
-    if codigos:
-        return codigos, "código de barras", None
-    cod, err_ia = leer_manuscrito_ia(imagen_bytes)
-    if cod:
-        return [cod], "lectura de texto con IA", None
-    return [], None, ("falta_libreria" if err == "falta_libreria" else err_ia)
-
-
 def agregar_a_acta(row_dict, codigo):
     codigos = [i["codigo"] for i in st.session_state.acta_items]
     if codigo not in codigos:
@@ -1290,13 +1206,6 @@ if df is not None:
         st.session_state.busqueda_val = ""
         st.session_state.mi_buscador = ""
 
-    def buscar_desde_foto_cb(clave_estado):
-        t = str(st.session_state.get(clave_estado, "")).strip()
-        st.session_state.mi_buscador = t
-        st.session_state.busqueda_val = t
-        if t and encontrar_bien(t) is not None:
-            st.session_state.pestana = "Bien"
-
     termino_busqueda = st.session_state.busqueda_val.strip()
     fila_bien = encontrar_bien(termino_busqueda) if termino_busqueda else None
 
@@ -1340,38 +1249,6 @@ if df is not None:
                           label_visibility="collapsed", on_change=al_buscar_cb)
         with col_btn:
             st.button("🗑️", on_click=limpiar_callback, help="Limpiar búsqueda", use_container_width=True)
-
-        with st.expander("📷 Buscar por foto de la etiqueta"):
-            st.caption("Funciona con código de barras y con códigos escritos a mano. Revise el código leído antes de buscar.")
-            foto_cam = st.camera_input("Tomar foto", key="foto_cam", label_visibility="collapsed")
-            foto_sub = st.file_uploader("O subir una foto de la etiqueta", type=["png", "jpg", "jpeg"], key="foto_sub")
-            origen_foto = foto_cam or foto_sub
-            if origen_foto is not None:
-                bytes_foto = origen_foto.getvalue()
-                id_foto = hashlib.md5(bytes_foto).hexdigest()[:12]
-                cache_fotos = st.session_state.setdefault("cache_fotos", {})
-                if id_foto not in cache_fotos:
-                    with st.spinner("Leyendo la etiqueta..."):
-                        cache_fotos[id_foto] = leer_foto_bien(bytes_foto)
-                codigos_foto, fuente_foto, error_foto = cache_fotos[id_foto]
-                if codigos_foto:
-                    st.success(f"Código leído por {fuente_foto}.")
-                    k_conf = f"foto_conf_{id_foto}"
-                    st.text_input("Confirme o corrija el código", value=codigos_foto[0], key=k_conf)
-                    if len(codigos_foto) > 1:
-                        st.caption("Otros códigos detectados: " + ", ".join(codigos_foto[1:]))
-                    st.button("🔍 Buscar este código", key=f"foto_btn_{id_foto}",
-                              on_click=buscar_desde_foto_cb, args=(k_conf,), use_container_width=True)
-                else:
-                    if error_foto == "sin_clave":
-                        st.warning("No se encontró código de barras. Para leer códigos escritos a mano falta configurar "
-                                   "anthropic_api_key en Secrets; mientras tanto escriba el código en el buscador.")
-                    elif error_foto == "falta_libreria":
-                        st.error("Falta instalar la librería zxing-cpp (agréguela a requirements.txt).")
-                    elif error_foto and str(error_foto).startswith("api_"):
-                        st.error(f"La lectura con IA falló ({error_foto}). Revise la clave y el saldo de la API.")
-                    else:
-                        st.warning("No se pudo leer el código. Intente otra foto más cerca, con buena luz y sin brillo.")
 
         if bien_actual:
             st.markdown(
@@ -1592,4 +1469,3 @@ if df is not None:
 
 else:
     st.warning("⚠️ No se encontró ningún archivo Excel activo en el servidor. Por favor, suba su reporte institucional en formato .xlsx mediante el menú de la barra lateral izquierda.")
-
