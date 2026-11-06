@@ -64,6 +64,10 @@ st.markdown("""
             div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
                 flex: 0 0 56px !important;
             }
+            /* Fila del buscador: cuadro de texto + cámara + papelera (los dos botones, angostos) */
+            .st-key-fila_buscar div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:not(:first-child) {
+                flex: 0 0 52px !important;
+            }
         }
 
         /* Cuadro de texto */
@@ -239,6 +243,15 @@ st.markdown("""
         .acta-item b { margin-right: 6px; }
 
         .nota { text-align: center; font-size: 0.75rem; color: #1B2A78; margin: 6px 0; }
+
+        /* Botón de cámara (popover) con el mismo aspecto que los demás botones */
+        div[data-testid="stPopover"] button {
+            background: #EFEFEF !important; border: 1px solid #767676 !important; border-radius: 3px !important;
+            color: #000000 !important; min-height: 46px !important; font-size: 20px !important;
+            padding-left: 0 !important; padding-right: 0 !important; justify-content: center !important;
+        }
+        div[data-testid="stPopover"] button svg { display: none !important; }
+        div[data-testid="stPopover"] { width: 100% !important; }
 
         /* Oculta el texto de ayuda de los cargadores ("200MB por archivo...") */
         [data-testid="stFileUploaderDropzoneInstructions"] { display: none !important; }
@@ -809,6 +822,125 @@ def reiniciar_receptor():
             st.session_state[k] = ""
 
 
+# ----------------------------------------------------------------------
+# Búsqueda por foto: código de barras (gratis) y código escrito a mano (IA, opcional)
+# ----------------------------------------------------------------------
+def leer_codigos_barras(imagen_bytes):
+    """Lee códigos de barras / QR de una foto. Devuelve (lista_de_textos, error)."""
+    try:
+        import zxingcpp
+    except Exception:
+        return [], "falta_libreria"
+    try:
+        img = PILImage.open(io.BytesIO(imagen_bytes)).convert("RGB")
+        img.thumbnail((2400, 2400))
+        vistos, lista = set(), []
+        for r in zxingcpp.read_barcodes(img):
+            t = (r.text or "").strip()
+            if t and t not in vistos:
+                vistos.add(t)
+                lista.append(t)
+        return lista, None
+    except Exception:
+        return [], "error_lectura"
+
+
+def leer_manuscrito_ia(imagen_bytes):
+    """Lee un código escrito a mano con la API de Claude (solo si hay anthropic_api_key en Secrets).
+    Devuelve (codigo_o_None, error_o_None)."""
+    try:
+        clave_api = str(st.secrets["anthropic_api_key"]).strip()
+        if not clave_api:
+            raise KeyError
+    except Exception:
+        return None, "sin_clave"
+    try:
+        modelo = str(st.secrets.get("anthropic_modelo", "claude-haiku-5-5")).strip() or "claude-haiku-5-5"
+    except Exception:
+        modelo = "claude-haiku-5-5"
+    try:
+        img = PILImage.open(io.BytesIO(imagen_bytes)).convert("RGB")
+        img.thumbnail((1600, 1600))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        datos = {
+            "model": modelo,
+            "max_tokens": 60,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
+                                                 "data": base64.b64encode(buf.getvalue()).decode()}},
+                    {"type": "text", "text": (
+                        "La imagen muestra la etiqueta de un bien institucional con un código de inventario "
+                        "escrito a mano con marcador (o impreso). Responde ÚNICAMENTE con el código, sin espacios "
+                        "ni explicaciones. Si hay varios números, devuelve el que parezca el código del bien. "
+                        "Si no se lee con claridad, responde exactamente: NINGUNO")},
+                ],
+            }],
+        }
+        r = requests.post("https://api.anthropic.com/v1/messages",
+                          headers={"x-api-key": clave_api, "anthropic-version": "2023-06-01",
+                                   "content-type": "application/json"},
+                          json=datos, timeout=40)
+        if not r.ok:
+            return None, f"api_{r.status_code}"
+        texto = "".join(b.get("text", "") for b in r.json().get("content", []) if b.get("type") == "text").strip()
+        texto = re.sub(r"[^A-Za-z0-9\-./]", "", texto)
+        if not texto or texto.upper() == "NINGUNO":
+            return None, "ilegible"
+        return texto, None
+    except Exception:
+        return None, "error_ia"
+
+
+def distancia_edicion(a, b, tope=2):
+    """Número de cambios (letras/dígitos) para convertir a en b; corta si supera el tope."""
+    if abs(len(a) - len(b)) > tope:
+        return tope + 1
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        act = [i]
+        for j, cb in enumerate(b, 1):
+            act.append(min(prev[j] + 1, act[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        if min(act) > tope:
+            return tope + 1
+        prev = act
+    return prev[-1]
+
+
+def codigos_parecidos(codigo, lista, tope=1, maximo=4):
+    """Códigos del reporte que difieren en como máximo 'tope' caracteres del leído (corrige un dígito mal leído)."""
+    c = str(codigo).strip().upper()
+    res = []
+    for x in lista:
+        xs = str(x).strip()
+        if not xs or xs.lower() in ("nan", "none"):
+            continue
+        d = distancia_edicion(c, xs.upper(), tope)
+        if d <= tope:
+            res.append((d, xs))
+    res.sort()
+    vistos, salida = set(), []
+    for _, x in res:
+        if x not in vistos:
+            vistos.add(x)
+            salida.append(x)
+    return salida[:maximo]
+
+
+def leer_foto_bien(imagen_bytes):
+    """Primero intenta código de barras; si no hay, intenta leer el escrito a mano.
+    Devuelve (lista_de_codigos, fuente, error)."""
+    codigos, err = leer_codigos_barras(imagen_bytes)
+    if codigos:
+        return codigos, "código de barras", None
+    cod, err_ia = leer_manuscrito_ia(imagen_bytes)
+    if cod:
+        return [cod], "lectura de texto con IA", None
+    return [], None, ("falta_libreria" if err == "falta_libreria" else err_ia)
+
+
 def agregar_a_acta(row_dict, codigo):
     codigos = [i["codigo"] for i in st.session_state.acta_items]
     if codigo not in codigos:
@@ -849,6 +981,10 @@ TRADUCIR_AYUDA_JS = """
     var doc = window.parent.document;
     var EXACTOS = {
         "Upload": "Subir archivo",
+        "Clear photo": "Borrar foto",
+        "Take Photo": "Tomar foto",
+        "Take photo": "Tomar foto",
+        "Switch camera": "Cambiar cámara",
         "Browse files": "Seleccionar archivo",
         "Browse file": "Seleccionar archivo",
         "Drag and drop file here": "Arrastre el archivo aquí",
@@ -1206,6 +1342,13 @@ if df is not None:
         st.session_state.busqueda_val = ""
         st.session_state.mi_buscador = ""
 
+    def buscar_desde_foto_cb(clave_estado):
+        t = str(st.session_state.get(clave_estado, "")).strip()
+        st.session_state.mi_buscador = t
+        st.session_state.busqueda_val = t
+        if t and encontrar_bien(t) is not None:
+            st.session_state.pestana = "Bien"
+
     termino_busqueda = st.session_state.busqueda_val.strip()
     fila_bien = encontrar_bien(termino_busqueda) if termino_busqueda else None
 
@@ -1243,12 +1386,75 @@ if df is not None:
         if "mi_buscador" not in st.session_state:
             st.session_state.mi_buscador = st.session_state.busqueda_val
 
-        col_input, col_btn = st.columns([4.2, 0.8])
-        with col_input:
-            st.text_input("Código o serie", key="mi_buscador", placeholder="Ingrese código o serie...",
-                          label_visibility="collapsed", on_change=al_buscar_cb)
-        with col_btn:
-            st.button("🗑️", on_click=limpiar_callback, help="Limpiar búsqueda", use_container_width=True)
+        def buscar_codigo_cb(codigo):
+            t = str(codigo).strip()
+            st.session_state.mi_buscador = t
+            st.session_state.busqueda_val = t
+            if t and encontrar_bien(t) is not None:
+                st.session_state.pestana = "Bien"
+
+        def reintentar_foto_cb(id_foto):
+            st.session_state.get("cache_fotos", {}).pop(id_foto, None)
+
+        def panel_foto():
+            """Contenido del botón de cámara: toma/sube la foto, lee el código y permite confirmarlo."""
+            st.caption("Acerque la cámara a la etiqueta, con buena luz y sin brillo. Revise el código leído antes de buscar.")
+            foto_cam = st.camera_input("Tomar foto", key="foto_cam", label_visibility="collapsed")
+            foto_sub = st.file_uploader("O elegir una foto de la galería", type=["png", "jpg", "jpeg"], key="foto_sub")
+            origen_foto = foto_cam or foto_sub
+            if origen_foto is None:
+                return
+            bytes_foto = origen_foto.getvalue()
+            id_foto = hashlib.md5(bytes_foto).hexdigest()[:12]
+            cache_fotos = st.session_state.setdefault("cache_fotos", {})
+            resultado = cache_fotos.get(id_foto)
+            if resultado is None:
+                with st.spinner("Leyendo la etiqueta..."):
+                    resultado = leer_foto_bien(bytes_foto)
+                # Solo se recuerda lo que costó una consulta; los avisos de configuración se reevalúan sin costo
+                if resultado[0] or str(resultado[2]) in ("ilegible", "error_ia") or str(resultado[2]).startswith("api_"):
+                    cache_fotos[id_foto] = resultado
+            codigos_foto, fuente_foto, error_foto = resultado
+
+            if codigos_foto:
+                st.success(f"Código leído por {fuente_foto}.")
+                k_conf = f"foto_conf_{id_foto}"
+                st.text_input("Confirme o corrija el código", value=codigos_foto[0], key=k_conf)
+                st.button("🔍 Buscar este código", key=f"foto_btn_{id_foto}",
+                          on_click=buscar_desde_foto_cb, args=(k_conf,), use_container_width=True)
+                if len(codigos_foto) > 1:
+                    st.caption("Otros códigos detectados: " + ", ".join(codigos_foto[1:]))
+                if encontrar_bien(codigos_foto[0]) is None:
+                    parecidos = codigos_parecidos(codigos_foto[0], s_codigo_str.unique())
+                    if parecidos:
+                        st.caption("Ese código no está en el reporte. ¿Será alguno de estos?")
+                        for pc in parecidos:
+                            st.button(pc, key=f"foto_par_{id_foto}_{pc}", on_click=buscar_codigo_cb,
+                                      args=(pc,), use_container_width=True)
+            else:
+                if error_foto == "sin_clave":
+                    st.warning("No se encontró código de barras. Para leer números escritos a mano falta activar la "
+                               "lectura con IA (anthropic_api_key en Secrets). Mientras tanto, escriba el código en el buscador.")
+                elif error_foto == "falta_libreria":
+                    st.error("Falta instalar la librería zxing-cpp (agréguela a requirements.txt).")
+                elif error_foto and str(error_foto).startswith("api_"):
+                    st.error(f"La lectura con IA falló ({error_foto}). Revise la clave y el saldo de la API.")
+                else:
+                    st.warning("No se pudo leer el código. Intente otra foto más cerca, con buena luz y sin brillo.")
+                if error_foto not in ("sin_clave", "falta_libreria"):
+                    st.button("🔄 Reintentar lectura", key=f"foto_reint_{id_foto}", on_click=reintentar_foto_cb,
+                              args=(id_foto,), use_container_width=True)
+
+        with st.container(key="fila_buscar"):
+            col_input, col_cam, col_btn = st.columns([3.4, 0.8, 0.8])
+            with col_input:
+                st.text_input("Código o serie", key="mi_buscador", placeholder="Ingrese código o serie...",
+                              label_visibility="collapsed", on_change=al_buscar_cb)
+            with col_cam:
+                with st.popover("📷", help="Buscar por foto de la etiqueta", use_container_width=True):
+                    panel_foto()
+            with col_btn:
+                st.button("🗑️", on_click=limpiar_callback, help="Limpiar búsqueda", use_container_width=True)
 
         if bien_actual:
             st.markdown(
